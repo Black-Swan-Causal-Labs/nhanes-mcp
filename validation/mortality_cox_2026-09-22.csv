@@ -1,0 +1,9 @@
+source,cohort,term,published_hr_public_use,published_ci,server_hr,server_ci,server_hr_mec_sensitivity,within_published_ci,notes
+NCHS NHSR 155 Table 4,NHANES 1999-2006 adults 25+ (NHW/NHB/MexAm),Age (per year),1.09,1.09-1.09,1.09,1.09-1.10,1.09,yes,
+NCHS NHSR 155 Table 4,,Male vs female,1.68,1.53-1.86,1.64,1.52-1.76,1.65,yes,
+NCHS NHSR 155 Table 4,,Non-Hispanic Black vs white,1.09,0.98-1.21,1.08,0.97-1.20,1.09,yes,
+NCHS NHSR 155 Table 4,,Mexican American vs white,1.12,0.96-1.30,0.71,0.63-0.79,0.70,NO,Unresolved; server estimate consistent with the Hispanic mortality advantage; robust to weight/time-origin choice
+NCHS NHSR 155 Table 4,,Less than high school vs some college+,1.65,1.45-1.87,1.63,1.48-1.80,1.64,yes,
+NCHS NHSR 155 Table 4,,HS diploma/GED vs some college+,1.27,1.14-1.42,1.27,1.16-1.39,1.27,yes,
+NCHS NHSR 155 Table 4,,Not married vs married,1.55,1.43-1.68,1.53,1.43-1.63,1.51,yes,
+,,Sample,n=16342; 4107 deaths (follow-up to 2015),,n=16357; 5161 deaths (follow-up to 2019),,,,Public-use LMF 2015 edition no longer distributed; 4 extra years of follow-up expected to shift HRs slightly

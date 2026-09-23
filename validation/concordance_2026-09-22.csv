@@ -1,0 +1,58 @@
+source,cycle,measure,population,adjustment,published_pct,published_se,published_ci,server_pct,server_se,server_ci_kg,match
+NCHS DB360,2017-2018,Obesity (BMI>=30),Adults 20+ non-pregnant,age-adjusted,42.4,1.8,,42.4,1.79,38.6-46.4,yes
+NCHS DB360,2017-2018,Obesity,Men,age-adjusted,43.0,2.7,,43.0,2.66,37.3-48.9,yes
+NCHS DB360,2017-2018,Obesity,Women,age-adjusted,41.9,2.0,,41.9,1.99,37.6-46.2,yes
+NCHS DB360,2017-2018,Obesity,Age 20-39,crude,40.0,2.6,,40.0,,,yes
+NCHS DB360,2017-2018,Obesity,Age 40-59,crude,44.8,1.9,,44.8,,,yes
+NCHS DB360,2017-2018,Obesity,Age 60+,crude,42.8,2.5,,42.8,,,yes
+NCHS DB360,2017-2018,Severe obesity (BMI>=40),Adults 20+,age-adjusted,9.2,0.9,,9.2,0.90,7.4-11.4,yes
+NCHS DB360,2017-2018,Severe obesity,Men,age-adjusted,6.9,1.0,,6.9,0.97,5.0-9.3,yes
+NCHS DB360,2017-2018,Severe obesity,Women,age-adjusted,11.5,1.3,,11.5,1.34,8.8-14.7,yes
+NCHS DB508,2021-2023,Obesity,Adults 20+ non-pregnant,age-adjusted,40.3,1.9,,40.3,1.88,36.3-44.5,yes
+NCHS DB508,2021-2023,Obesity,Men,age-adjusted,39.3,1.9,,39.3,1.88,35.3-43.4,yes
+NCHS DB508,2021-2023,Obesity,Women,age-adjusted,41.4,2.3,,41.4,2.27,36.5-46.4,yes
+NCHS DB508,2021-2023,Obesity,Adults 20+,crude,40.3,,,40.3,1.84,36.3-44.3,yes
+NCHS DB508,2021-2023,Obesity,Men,crude,39.2,,,39.2,1.93,35.1-43.5,yes
+NCHS DB508,2021-2023,Obesity,Women,crude,41.3,,,41.3,2.20,36.6-46.1,yes
+NCHS DB508,2021-2023,Obesity,Age 20-39,crude,35.5,3.0,,35.5,,,yes
+NCHS DB508,2021-2023,Obesity,Age 40-59,crude,46.4,1.8,,46.4,,,yes
+NCHS DB508,2021-2023,Obesity,Age 60+,crude,38.9,1.5,,38.9,,,yes
+NCHS DB508,2021-2023,Obesity,Men 20-39,crude,34.3,2.8,,34.3,,,yes
+NCHS DB508,2021-2023,Obesity,Men 40-59,crude,45.4,1.9,,45.4,,,yes
+NCHS DB508,2021-2023,Obesity,Men 60+,crude,38.0,2.3,,38.0,,,yes
+NCHS DB508,2021-2023,Obesity,Women 20-39,crude,36.8,3.6,,36.8,,,yes
+NCHS DB508,2021-2023,Obesity,Women 40-59,crude,47.4,2.1,,47.4,,,yes
+NCHS DB508,2021-2023,Obesity,Women 60+,crude,39.6,1.9,,39.6,,,yes
+NCHS DB508,2021-2023,Severe obesity,Adults 20+,age-adjusted,9.7,0.7,,9.7,0.70,8.3-11.3,yes
+NCHS DB508,2021-2023,Severe obesity,Men,age-adjusted,6.8,0.7,,6.8,0.73,5.4-8.6,yes
+NCHS DB508,2021-2023,Severe obesity,Women,age-adjusted,12.6,1.0,,12.6,0.98,10.6-14.8,yes
+NCHS DB508,2021-2023,Severe obesity,Adults 20+,crude,9.4,,,9.4,0.66,8.1-10.9,yes
+NCHS DB508,2021-2023,Severe obesity,Age 20-39,crude,9.5,1.0,,9.5,,,yes
+NCHS DB508,2021-2023,Severe obesity,Age 40-59,crude,12.0,1.0,,12.0,,,yes
+NCHS DB508,2021-2023,Severe obesity,Age 60+,crude,6.6,0.6,,6.6,,,yes
+NCHS DB508,2021-2023,Severe obesity,Men 20-39,crude,6.1,0.8,,6.1,,,yes
+NCHS DB508,2021-2023,Severe obesity,Men 40-59,crude,9.2,1.3,,9.2,,,yes
+NCHS DB508,2021-2023,Severe obesity,Men 60+,crude,4.3,0.6,,4.3,,,yes
+NCHS DB508,2021-2023,Severe obesity,Women 20-39,crude,13.0,1.5,,13.0,,,yes
+NCHS DB508,2021-2023,Severe obesity,Women 40-59,crude,14.7,1.4,,14.7,,,yes
+NCHS DB508,2021-2023,Severe obesity,Women 60+,crude,8.4,0.8,,8.4,,,yes
+NCHS DB508 (trend),2017-Mar 2020 (P_ files),Obesity,Adults 20+ non-pregnant,age-adjusted,41.9,1.2,,41.9,1.22,39.3-44.4,yes
+NCHS DB508 (trend),2017-Mar 2020 (P_ files),Severe obesity,Adults 20+ non-pregnant,age-adjusted,9.2,0.6,,9.2,0.63,8.0-10.6,yes
+NCHS DB515,2021-2023,High total cholesterol (>=240),Adults 20+,crude,11.3,,9.8-12.9,11.3,0.70,9.8-12.9,yes
+NCHS DB515,2021-2023,High total cholesterol,Men,crude,10.6,,8.6-12.9,10.6,0.97,8.6-12.9,yes
+NCHS DB515,2021-2023,High total cholesterol,Women,crude,11.9,,10.3-13.6,11.9,0.76,10.3-13.6,yes
+NCHS DB515,2021-2023,Low HDL (<40),Adults 20+,crude,13.8,,12.1-15.7,13.8,0.82,12.1-15.7,yes
+NCHS DB515,2021-2023,Low HDL,Men,crude,21.5,,18.6-24.6,21.5,1.37,18.6-24.6,yes
+NCHS DB515,2021-2023,Low HDL,Women,crude,6.6,,5.4-8.0,6.6,0.60,5.4-8.1,yes (upper CI 8.05 rounds to 8.1 vs 8.0)
+NCHS DB363,2015-2018 pooled,High total cholesterol,Adults 20+,age-adjusted,11.4,0.6,,11.4,0.58,10.3-12.7,yes
+NCHS DB363,2015-2018 pooled,High total cholesterol,Men,age-adjusted,10.5,0.7,,10.5,0.74,9.1-12.2,yes
+NCHS DB363,2015-2018 pooled,High total cholesterol,Women,age-adjusted,12.1,0.8,,12.1,0.77,10.6-13.8,yes
+NCHS DB363,2015-2018 pooled,High total cholesterol,Age 20-39,crude,7.5,0.5,,7.5,,,yes
+NCHS DB363,2015-2018 pooled,High total cholesterol,Age 40-59,crude,15.7,1.1,,15.7,,,yes
+NCHS DB363,2015-2018 pooled,High total cholesterol,Age 60+,crude,11.4,0.8,,11.4,,,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Adults 20+,age-adjusted,17.2,0.8,,17.2,0.76,15.7-18.8,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Men,age-adjusted,26.6,1.3,,26.6,1.28,24.0-29.4,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Women,age-adjusted,8.5,0.5,,8.5,0.53,7.4-9.6,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Age 20-39,crude,17.6,1.0,,17.6,,,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Age 40-59,crude,18.5,1.1,,18.5,,,yes
+NCHS DB363,2015-2018 pooled,Low HDL,Age 60+,crude,14.6,1.0,,14.6,,,yes
