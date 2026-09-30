@@ -3,6 +3,7 @@
 Targets (published NCHS Data Briefs):
   DB360 (2017-2018): adult (20+) obesity, age-adjusted 42.4%; severe obesity 9.2%. Pregnant excluded.
   DB508 (Aug 2021-Aug 2023): obesity 40.3% (men 39.2, women 41.3); severe 9.4%. Crude. Pregnant excluded.
+  DB511 (Aug 2021-Aug 2023): hypertension 47.7% (age-adj 44.5%), awareness 59.2%, treatment 51.2%, control 20.7%.
   Bate et al. 2010 (NHANES 1999-2004): CMV seroprevalence 6-49y, age-adjusted 50.4%; surplus-serum weights.
   DB515 (Aug 2021-Aug 2023): high total cholesterol (>=240) 11.3% (men 10.6, women 11.9);
                              low HDL (<40) 13.8% (men 21.5, women 6.6). Crude. Phlebotomy weights.
@@ -78,6 +79,42 @@ check("Bate 2010 CMV 1999-2004 (age-adj)", 50.4,
 cs = S.survey_estimate(b["dataset_id"], "CMV", "proportion", CMV_DOM, by=["RIAGENDR"], age_adjust=STD_6_49)
 check("Bate 2010 CMV men (age-adj)", 45.2, cs, {"RIAGENDR": 1.0})
 check("Bate 2010 CMV women (age-adj)", 55.5, cs, {"RIAGENDR": 2.0})
+
+# --- DB511 (Aug 2021-Aug 2023): hypertension (SBP>=130 or DBP>=80 or on medication), adults 18+,
+#     pregnant excluded; mean of up to 3 oscillometric readings. Crude unless noted; age-adjusted to the
+#     2000 US standard 18-39/40-59/60+. Awareness/treatment/control among adults with hypertension.
+b = S.build_dataset(["2021-2023"], ["BPXO", "BPQ"],
+                    ["BPXOSY1", "BPXOSY2", "BPXOSY3", "BPXODI1", "BPXODI2", "BPXODI3", "BPQ020", "BPQ150"])
+d = b["dataset_id"]
+S.set_missing(d, "BPQ020", [7, 9]); S.set_missing(d, "BPQ150", [7, 9])
+S.derive_variable(d, "SBP", "(fillna(BPXOSY1,0)+fillna(BPXOSY2,0)+fillna(BPXOSY3,0))/(notna(BPXOSY1)+notna(BPXOSY2)+notna(BPXOSY3))")
+S.derive_variable(d, "DBP", "(fillna(BPXODI1,0)+fillna(BPXODI2,0)+fillna(BPXODI3,0))/(notna(BPXODI1)+notna(BPXODI2)+notna(BPXODI3))")
+S.derive_variable(d, "MEDS", "where(BPQ020 == 1, fillna(BPQ150, 2) == 1, 0)")
+S.derive_variable(d, "HTN", "(SBP >= 130) | (DBP >= 80) | (MEDS == 1)")
+S.derive_variable(d, "AWARE", "BPQ020 == 1")
+S.derive_variable(d, "CONTROL", "(SBP < 130) & (DBP < 80)")
+S.derive_variable(d, "AGE3", "(RIDAGEYR >= 40) + (RIDAGEYR >= 60) + 1")
+AD18 = "RIDAGEYR >= 18 & RIDEXPRG != 1"
+HT = AD18 + " & HTN == 1"
+STD18 = {"groups": [[18, 39], [40, 59], [60, 200]], "proportions": [0.420263, 0.357202, 0.222535],
+         "note": "NCHS 2000 US standard, adults 18+"}
+check("DB511 hypertension 2021-23", 47.7, S.survey_estimate(d, "HTN", "proportion", AD18))
+check("DB511 hypertension 2021-23 (age-adj)", 44.5, S.survey_estimate(d, "HTN", "proportion", AD18, age_adjust=STD18))
+hs = S.survey_estimate(d, "HTN", "proportion", AD18, by=["RIAGENDR"])
+check("DB511 hypertension men", 50.8, hs, {"RIAGENDR": 1.0})
+check("DB511 hypertension women", 44.6, hs, {"RIAGENDR": 2.0})
+ha = S.survey_estimate(d, "HTN", "proportion", AD18, by=["AGE3"])
+for g, v in ((1.0, 23.4), (2.0, 52.5), (3.0, 71.6)):
+    check(f"DB511 hypertension age group {int(g)}", v, ha, {"AGE3": g})
+check("DB511 awareness", 59.2, S.survey_estimate(d, "AWARE", "proportion", HT))
+aw = S.survey_estimate(d, "AWARE", "proportion", HT, by=["RIAGENDR"])
+check("DB511 awareness men", 55.2, aw, {"RIAGENDR": 1.0})
+check("DB511 awareness women", 63.6, aw, {"RIAGENDR": 2.0})
+check("DB511 treatment", 51.2, S.survey_estimate(d, "MEDS", "proportion", HT))
+check("DB511 control", 20.7, S.survey_estimate(d, "CONTROL", "proportion", HT))
+ca = S.survey_estimate(d, "CONTROL", "proportion", HT, by=["AGE3"])
+for g, v in ((1.0, 4.5), (2.0, 18.1), (3.0, 29.2)):
+    check(f"DB511 control age group {int(g)}", v, ca, {"AGE3": g})
 
 print(json.dumps({"lipid_weight_choice": lip_weight, "cmv_weight_choice": cmv_weight, "results": rows},
                  indent=1, default=str))

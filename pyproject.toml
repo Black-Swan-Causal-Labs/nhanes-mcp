@@ -1,6 +1,6 @@
 [project]
 name = "nhanes-mcp"
-version = "0.4.0"
+version = "0.4.1"
 description = "MCP server for design-correct, conversational access to NHANES public-use data (Black Swan Causal Labs)"
 requires-python = ">=3.10"
 license = {text = "MIT"}

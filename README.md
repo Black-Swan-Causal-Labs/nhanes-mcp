@@ -1,7 +1,7 @@
 # nhanes-mcp
 
 An MCP server for **design-correct**, conversational access to NHANES public-use data.
-Black Swan Causal Labs · MIT license · v0.4
+Black Swan Causal Labs · MIT license · v0.4.1
 
 Most "chat with a dataset" layers let an agent compute an unweighted mean. With NHANES that
 answer is wrong. This server makes the defensible analysis the default: the agent asks a question
@@ -50,6 +50,8 @@ Estimates were checked against published NCHS results (`validation/`):
 - **Mortality:** a design-based Cox model on NHANES 1999–2006 (adults 25+) reproduces 6 of 7 published
   hazard ratios within their CIs (NHSR 155). The Mexican American contrast does not reproduce
   (0.71 vs 1.12 published); this is under investigation and the linked file here has longer follow-up (2019 vs 2015).
+- **Hypertension** (NCHS Data Brief 511, 2021–2023, adults 18+): prevalence (crude and age-adjusted, by sex and
+  age), awareness, treatment and control — 17 of 17 published estimates reproduced exactly.
 - **CMV seroprevalence** (Bate et al., *Clin Infect Dis* 2010; NHANES 1999–2004, ages 6–49, surplus-serum
   weights): see `tests/benchmark_nchs.py`. Before v0.4 the server silently used MEC weights here and could not
   load the 1999–2000 file.
@@ -102,6 +104,9 @@ python tests/benchmark_nchs.py          # reproduces published NCHS estimates (n
 
 ## Changelog
 
+- **0.4.1** — Comparisons inside missing-aware functions now return missing when an operand is missing, so
+  skip-pattern definitions such as `where(BPQ020 == 1, fillna(BPQ150, 2) == 1, 0)` are missing (not 0) for people
+  never asked the screener. Hypertension benchmark (NCHS Data Brief 511) added.
 - **0.4.0** — Surplus-serum and other file-specific subsample weights with `2Y`/`4Y` suffixes are detected
   and pooled; 1999–2000 `_A` file names resolved; `build_dataset(weight=...)` and new `set_weight` tool, both
   recorded in every result; design columns protected from `derive_variable`; missing-aware expression functions;

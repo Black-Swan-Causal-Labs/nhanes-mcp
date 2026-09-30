@@ -152,8 +152,19 @@ def _eval(df: pd.DataFrame, expr: str):
                      _ast.LtE: lambda x, y: x <= y, _ast.Eq: lambda x, y: x == y, _ast.NotEq: lambda x, y: x != y}
                 if type(op) not in f:
                     raise ValueError("Unsupported comparison")
-                r = pd.Series(f[type(op)](left, right), index=df.index)
-                res = r if res is None else (res & r)
+                r = pd.Series(f[type(op)](left, right), index=df.index).astype(float)
+                if depth[0]:
+                    # Inside missing-aware functions a comparison with a missing operand is itself
+                    # missing (not False), so where(cond, ...) and coalesce() see an unknown condition
+                    # as unknown. Outside them, the derive_variable missing rule / domain handling apply.
+                    na = pd.Series(left, index=df.index).isna() | pd.Series(right, index=df.index).isna()
+                    r[na] = np.nan
+                if res is None:
+                    res = r
+                else:
+                    both = ((res != 0) & (r != 0)).astype(float)
+                    both[res.isna() | r.isna()] = np.nan
+                    res = both
                 left = right
             return res.astype(float)
         if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id in _FUNCS and len(n.args) == 1:
