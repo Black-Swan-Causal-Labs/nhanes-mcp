@@ -50,21 +50,29 @@ def check_cycle(cycle: str) -> dict:
     return CYCLES[cycle]
 
 
-def file_name(base: str, cycle: str) -> str:
-    """Map a base table name (e.g. 'BMX') to the cycle-specific file (BMX_J, P_BMX, BMX_L).
-    If `base` already looks cycle-specific it is returned upper-cased unchanged."""
-    c = check_cycle(cycle)
-    b = base.upper()
-    if b.startswith("P_") or re.search(r"_[B-L]$", b):
-        return b
-    return f"{c['prefix']}{b}{c['suffix']}"
-
-
 def base_name(fname: str) -> str:
+    """Strip the cycle marker from a file name: P_BMX -> BMX, BMX_J -> BMX, SSCMV_A -> SSCMV."""
     b = fname.upper()
     if b.startswith("P_"):
         b = b[2:]
-    return re.sub(r"_[B-L]$", "", b)
+    return re.sub(r"_[A-L]$", "", b)
+
+
+def file_name(base: str, cycle: str) -> str:
+    """Map a base table name (e.g. 'BMX') to the cycle's conventional file name (BMX_J, P_BMX, BMX_L).
+    A cycle-specific name passed in (BMX_J, SSCMV_A) is first reduced to its base, so the same
+    base works across cycles. See candidate_names() for known exceptions."""
+    c = check_cycle(cycle)
+    return f"{c['prefix']}{base_name(base)}{c['suffix']}"
+
+
+def candidate_names(base: str, cycle: str) -> list[str]:
+    """File names to try, most likely first. 1999-2000 files usually have no suffix, but some
+    (e.g. surplus-serum SSCMV_A, SSMUMP_A) carry '_A'."""
+    names = [file_name(base, cycle)]
+    if cycle == "1999-2000":
+        names.append(f"{base_name(base)}_A")
+    return list(dict.fromkeys(names))
 
 
 def _urls(fname: str, cycle: str, ext: str) -> list[str]:
@@ -93,20 +101,36 @@ def _get(urls: list[str]) -> tuple[bytes, str]:
 
 
 def load_xpt(base: str, cycle: str) -> tuple[pd.DataFrame, dict]:
-    """Return (data, meta). Uses local data dir, then cache, then CDC."""
-    fname = file_name(base, cycle)
-    meta = {"file": fname, "cycle": cycle}
-    candidates = []
-    if LOCAL_DATA:
-        candidates += [Path(LOCAL_DATA) / f"{fname}.xpt", Path(LOCAL_DATA) / f"{fname}.XPT"]
-    cpath = CACHE / cycle / f"{fname}.xpt"
-    candidates.append(cpath)
-    path = next((p for p in candidates if p.exists()), None)
+    """Return (data, meta). Uses local data dir, then cache, then CDC; tries known file-name variants."""
+    names = candidate_names(base, cycle)
+    path, fname, url = None, names[0], None
+    for n in names:  # local copies first
+        cands = []
+        if LOCAL_DATA:
+            cands += [Path(LOCAL_DATA) / f"{n}.xpt", Path(LOCAL_DATA) / f"{n}.XPT"]
+        cands.append(CACHE / cycle / f"{n}.xpt")
+        path = next((p for p in cands if p.exists()), None)
+        if path is not None:
+            fname = n
+            break
     if path is None:
-        content, url = _get(_urls(fname, cycle, "xpt"))
-        cpath.parent.mkdir(parents=True, exist_ok=True)
-        cpath.write_bytes(content)
-        path, meta["source_url"] = cpath, url
+        errs = []
+        for n in names:
+            try:
+                content, url = _get(_urls(n, cycle, "xpt"))
+            except RuntimeError as e:
+                errs.append(str(e))
+                continue
+            fname = n
+            path = CACHE / cycle / f"{n}.xpt"
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(content)
+            break
+        if path is None:
+            raise RuntimeError(f"No file found for '{base}' in {cycle} (tried {names}).\n" + "\n".join(errs))
+    meta = {"file": fname, "cycle": cycle}
+    if url:
+        meta["source_url"] = url
     meta["path"] = str(path)
     labels = {}
     try:
@@ -192,14 +216,22 @@ def variable_list(cycle: str, component: str) -> pd.DataFrame:
 
 def codebook(base: str, cycle: str) -> dict:
     """Parse the CDC .htm documentation for a file: per-variable label, target, value table."""
-    fname = file_name(base, cycle)
-    cpath = CACHE / cycle / f"{fname}.htm"
-    if cpath.exists():
-        html = cpath.read_bytes()
-    else:
-        html, _ = _get(_urls(fname, cycle, "htm"))
+    html, errs = None, []
+    for fname in candidate_names(base, cycle):
+        cpath = CACHE / cycle / f"{fname}.htm"
+        if cpath.exists():
+            html = cpath.read_bytes()
+            break
+        try:
+            html, _ = _get(_urls(fname, cycle, "htm"))
+        except RuntimeError as e:
+            errs.append(str(e))
+            continue
         cpath.parent.mkdir(parents=True, exist_ok=True)
         cpath.write_bytes(html)
+        break
+    if html is None:
+        raise RuntimeError("Codebook not found:\n" + "\n".join(errs))
     from bs4 import BeautifulSoup
     soup = BeautifulSoup(html, "lxml")
     out = {}

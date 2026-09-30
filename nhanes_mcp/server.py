@@ -28,8 +28,10 @@ MISSING_WORDS = re.compile(r"refused|don.?t know|missing|not ascertained|cannot 
 GUIDANCE = """NHANES analysis rules this server enforces (and why):
 1. WEIGHTS. Use the weight of the most restrictive component contributing a variable:
    interview-only -> WTINT; any MEC exam/lab/MEC-administered questionnaire -> WTMEC;
-   fasting / phlebotomy / other subsample files -> that file's own weight (e.g. WTSAF2YR, WTPH2YR).
-   build_dataset selects this automatically and explains its choice.
+   fasting / phlebotomy / surplus-serum / other subsample files -> that file's own weight
+   (e.g. WTSAF2YR, WTPH2YR, WTSSMC2Y/WTSSMC4Y). build_dataset selects this automatically and
+   explains its choice; build_dataset(weight=...) or set_weight() override it, and any override
+   is reported with every result.
 2. DESIGN. Variance uses Taylor linearization with strata SDMVSTRA and PSUs SDMVPSU
    (with-replacement). Design df = #PSU - #strata.
 3. SUBPOPULATIONS. Never subset the data before estimation; pass a `domain` expression.
@@ -44,6 +46,8 @@ GUIDANCE = """NHANES analysis rules this server enforces (and why):
    missing BMI stays missing, it does not silently become 0).
 7. AGE. RIDAGEYR is top-coded at 80 (85 in early cycles). Age-adjusted adult prevalence uses the
    2000 projected census standard with groups 20-39, 40-59, 60+ (age_adjust='nchs_adults_20plus').
+   Other age ranges: pass a custom standard {"groups": [[a0,a1],...], "population": [...]} and name
+   its source in "note".
 8. RELIABILITY. Proportions report Korn-Graubard CIs and NCHS 2017 presentation-standard flags;
    do not report estimates flagged 'suppress'.
 9. PREGNANCY. NCHS body-measure estimates exclude pregnant participants (RIDEXPRG == 1).
@@ -66,21 +70,30 @@ def _weight_kind(col: str) -> str | None:
     for k in DIETARY_WEIGHTS:
         if col in (k, f"{k}PP"):
             return k
-    m = re.match(r"^(WT[A-Z0-9]+?)(2YR|4YR|PRP)$", col)
+    m = WEIGHT_RE.match(col)
     return m.group(1) if m else None
+
+
+WEIGHT_RE = re.compile(r"^(WT[A-Z0-9]+?)(2YR|4YR|2Y|4Y|PRP)$")
+FOUR_YEAR_RE = re.compile(r"4(YR|Y)$")
+PROTECTED_COLS = {"WT_ANALYSIS", "WT_SOURCE", "SDMVSTRA", "SDMVSTRA_U", "SDMVPSU", "CYCLE", "SEQN"}
 
 
 def _weight_col(frame_cols, kind: str, cycle: str, four_year: bool) -> str | None:
     if kind in DIETARY_WEIGHTS:
         opts = [f"{kind}PP"] if cycle == "2017-2020" else [kind]
     else:
-        opts = [f"{kind}PRP"] if cycle == "2017-2020" else ([f"{kind}4YR", f"{kind}2YR"] if four_year else [f"{kind}2YR"])
+        two = [f"{kind}2YR", f"{kind}2Y"]
+        opts = [f"{kind}PRP"] if cycle == "2017-2020" else ([f"{kind}4YR", f"{kind}4Y"] + two if four_year else two)
     return next((c for c in opts if c in frame_cols), None)
 
 
 import ast as _ast
 
 _FUNCS = {"abs": np.abs, "log": np.log, "exp": np.exp, "sqrt": np.sqrt}
+# Functions that deliberately look at missingness. Columns referenced only inside them are exempt
+# from derive_variable's missing-propagation rule (otherwise coalesce() could never fill anything).
+_NA_FUNCS = {"coalesce", "fillna", "isna", "notna", "where"}
 
 
 def _eval(df: pd.DataFrame, expr: str):
@@ -95,7 +108,8 @@ def _eval(df: pd.DataFrame, expr: str):
         tree = _ast.parse(src, mode="eval")
     except SyntaxError as e:
         raise ValueError(f"Invalid expression: {e}")
-    refs = []
+    refs, na_refs = [], []
+    depth = [0]
 
     def ev(n):
         if isinstance(n, _ast.Expression):
@@ -103,7 +117,7 @@ def _eval(df: pd.DataFrame, expr: str):
         if isinstance(n, _ast.Name):
             if n.id not in df.columns:
                 raise ValueError(f"Unknown column '{n.id}'")
-            refs.append(n.id)
+            (na_refs if depth[0] else refs).append(n.id)
             return df[n.id].astype(float)
         if isinstance(n, _ast.Constant) and isinstance(n.value, (int, float)):
             return float(n.value)
@@ -144,12 +158,34 @@ def _eval(df: pd.DataFrame, expr: str):
             return res.astype(float)
         if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id in _FUNCS and len(n.args) == 1:
             return _FUNCS[n.func.id](ev(n.args[0]))
+        if isinstance(n, _ast.Call) and isinstance(n.func, _ast.Name) and n.func.id in _NA_FUNCS and not n.keywords:
+            fn = n.func.id
+            depth[0] += 1
+            try:
+                args = [pd.Series(ev(a), index=df.index, dtype=float) for a in n.args]
+            finally:
+                depth[0] -= 1
+            if fn == "coalesce" and len(args) >= 2:
+                out = args[0]
+                for a in args[1:]:
+                    out = out.fillna(a)
+                return out
+            if fn == "fillna" and len(args) == 2:
+                return args[0].fillna(args[1])
+            if fn in ("isna", "notna") and len(args) == 1:
+                return (args[0].isna() if fn == "isna" else args[0].notna()).astype(float)
+            if fn == "where" and len(args) == 3:
+                cond = args[0]
+                out = pd.Series(np.where(cond.fillna(0) != 0, args[1], args[2]), index=df.index, dtype=float)
+                out[cond.isna()] = np.nan
+                return out
+            raise ValueError(f"Wrong number of arguments for {fn}()")
         raise ValueError(f"Unsupported syntax in expression: {_ast.dump(n)[:80]}")
 
     out = ev(tree)
     if not isinstance(out, pd.Series):
         out = pd.Series(out, index=df.index, dtype=float)
-    return out, sorted(set(refs))
+    return out, sorted(set(refs))  # na_refs deliberately excluded from missing propagation
 
 
 @mcp.tool()
@@ -230,13 +266,16 @@ def describe_variable(variable: str, table: str, cycle: str) -> dict:
 
 @mcp.tool()
 def build_dataset(cycles: list[str], tables: list[str], variables: list[str] | None = None,
-                  include_mortality: bool = False) -> dict:
+                  include_mortality: bool = False, weight: str | None = None) -> dict:
     """Build an analysis-ready dataset: DEMO universe (all participants, needed for valid domain
     estimation) left-joined to the requested tables on SEQN, for one or more cycles.
 
     tables: base names without cycle suffix, e.g. ["BMX", "TCHOL", "BPQ"] (DEMO is always included).
     variables: columns to keep from those tables (default: all). Weight/design variables are always kept.
-    The analysis weight is chosen and rescaled automatically -> column WT_ANALYSIS.
+    The analysis weight is chosen and rescaled automatically -> column WT_ANALYSIS. Subsample weights
+    carried by a file (fasting WTSAF2YR, phlebotomy WTPH2YR, surplus serum WTSSMC2Y/4Y, ...) are detected.
+    weight: optional weight kind to force, e.g. 'WTSSMC' or 'WTMEC' (without the 2YR/4YR suffix). The server
+    warns if it is less restrictive than the automatic choice.
     """
     if not cycles:
         raise ValueError("Give at least one cycle.")
@@ -321,14 +360,25 @@ def build_dataset(cycles: list[str], tables: list[str], variables: list[str] | N
     else:
         kind, reason = "WTINT", "all variables come from the household interview"
 
+    auto_kind = kind
+    if weight:
+        forced = _weight_kind(weight.upper()) or weight.upper()
+        if not all(_weight_col(f.columns, forced, f["CYCLE"].iat[0],
+                               four_year and f["CYCLE"].iat[0] in ("1999-2000", "2001-2002")) for f in frames):
+            raise ValueError(f"Weight '{forced}' not found in every cycle. Weight columns present: "
+                             f"{sorted({c for f in frames for c in f.columns if _weight_kind(c)})}")
+        if forced != auto_kind:
+            warnings.append(f"Weight set by caller to {forced}; automatic choice was {auto_kind} ({reason}). "
+                            "Check that the forced weight is appropriate for every variable analyzed.")
+        kind, reason = forced, f"set by caller (automatic choice: {auto_kind})"
+
     out_frames = []
     for f in frames:
         cy = f["CYCLE"].iat[0]
         wc = _weight_col(f.columns, kind, cy, four_year and cy in ("1999-2000", "2001-2002"))
         if wc is None:
             raise ValueError(f"Weight {kind} not found for cycle {cy}.")
-        span = 4.0 if wc.endswith("4YR") else cat.CYCLES[cy]["years"]
-        factor = (span / total_years) if wc.endswith("4YR") else (cat.CYCLES[cy]["years"] / total_years)
+        factor = (4.0 / total_years) if FOUR_YEAR_RE.search(wc) else (cat.CYCLES[cy]["years"] / total_years)
         f = f.copy()
         f["WT_ANALYSIS"] = f[wc].fillna(0) * factor
         f["WT_SOURCE"] = f"{wc} x {factor:.4f}"
@@ -361,6 +411,30 @@ def describe_dataset(dataset_id: str) -> dict:
 
 
 @mcp.tool()
+def set_weight(dataset_id: str, expression: str, reason: str) -> dict:
+    """Replace the analysis weight with a custom expression over existing columns, e.g.
+    'coalesce(WTSSMC4Y * 4/6, WTSSMC2Y * 2/6)'. Use only when build_dataset cannot select the right
+    weight. The change is recorded and reported (weight kind 'CUSTOM' + a warning) in every later result.
+    Negative or missing weights become 0 (out of sample)."""
+    ds = _ds(dataset_id)
+    df = ds["df"]
+    res, _ = _eval(df, expression)
+    res = res.astype(float).fillna(0.0)
+    if (res < 0).any():
+        raise ValueError("Weight expression produced negative values.")
+    old = ds["weight_kind"]
+    df["WT_ANALYSIS"] = res
+    df["WT_SOURCE"] = f"custom: {expression}"
+    ds["weight_kind"] = "CUSTOM"
+    ds["weight_reason"] = f"set_weight: {reason} (replaced {old})"
+    ds["warnings"].append(f"Analysis weight overridden by set_weight: '{expression}' ({reason}). "
+                          f"Previous automatic weight: {old}.")
+    ds["derived"]["WT_ANALYSIS"] = {"expression": expression, "reason": reason, "replaced": old}
+    return {"weight": "CUSTOM", "expression": expression, "n_positive_weight": int((res > 0).sum()),
+            "sum_weights_by_cycle": {k: float(v) for k, v in df.groupby("CYCLE")["WT_ANALYSIS"].sum().items()}}
+
+
+@mcp.tool()
 def set_missing(dataset_id: str, variable: str, codes: list[float]) -> dict:
     """Recode sentinel values (e.g. 7, 9, 77, 99 for refused/don't know) to missing."""
     ds = _ds(dataset_id)
@@ -377,10 +451,17 @@ def derive_variable(dataset_id: str, name: str, expression: str, missing: str = 
     name='OBESE', expression='BMXBMI >= 30'  (booleans become 0/1).
     missing: 'any' -> result missing if ANY referenced column is missing (default, conservative);
              'all' -> missing only if ALL referenced columns are missing (for OR-type definitions);
-             'none' -> no propagation."""
+             'none' -> no propagation.
+    Missing-aware functions: coalesce(a, b, ...), fillna(x, value), isna(x), notna(x),
+    where(cond, a, b). Columns used only inside them are exempt from the missing rule.
+    Design columns (WT_ANALYSIS, strata, PSU, SEQN, CYCLE) cannot be overwritten here; use set_weight."""
     ds = _ds(dataset_id)
     df = ds["df"]
     name = name.upper()
+    if name in PROTECTED_COLS:
+        raise ValueError(f"'{name}' is a design column and cannot be overwritten with derive_variable. "
+                         "To change the analysis weight use build_dataset(weight=...) or set_weight(), "
+                         "which record the change in every result.")
     res, refs = _eval(df, expression)
     res = res.astype(float).copy()
     if refs and missing != "none":
@@ -410,12 +491,14 @@ def _groups(df: pd.DataFrame, by: list[str] | None):
 
 @mcp.tool()
 def survey_estimate(dataset_id: str, variable: str, statistic: str = "mean", domain: str | None = None,
-                    by: list[str] | None = None, age_adjust: str | None = None) -> dict:
+                    by: list[str] | None = None, age_adjust: str | dict | None = None) -> dict:
     """Design-based estimate (Taylor linearization) of a mean, proportion (0/1 variable) or total.
     domain: expression defining the subpopulation, e.g. 'RIDAGEYR >= 20 & RIDEXPRG != 1'
             (the design is NOT subset; out-of-domain records get zero weight).
     by: grouping variables, e.g. ['RIAGENDR'].
-    age_adjust: 'nchs_adults_20plus' for NCHS direct age standardization (2000 census; 20-39/40-59/60+).
+    age_adjust: a preset name ('nchs_adults_20plus': 2000 census, 20-39/40-59/60+) or a custom standard
+        {"groups": [[6,11],[12,19],[20,29]], "population": [24.6, 32.5, 38.3]} (or "proportions"),
+        optionally "age_var" (default RIDAGEYR) and "note" naming the source of the standard.
     Proportions come with Korn-Graubard CIs and NCHS reliability flags."""
     ds = _ds(dataset_id)
     df = ds["df"]
@@ -424,15 +507,26 @@ def survey_estimate(dataset_id: str, variable: str, statistic: str = "mean", dom
     if domain:
         res, _ = _eval(df, domain)
         dmask = (res.fillna(0) != 0).to_numpy()
+    std = sv.resolve_age_standard(age_adjust) if age_adjust else None
+    extra_warn = []
+    if std is not None:
+        age = df[std["age_var"]].to_numpy(dtype=float)
+        covered = np.zeros(len(df), dtype=bool)
+        for a0, a1 in std["groups"]:
+            covered |= (age >= a0) & (age <= a1)
+        n_out = int((dmask & ~covered & df[variable].notna().to_numpy()).sum())
+        if n_out:
+            extra_warn.append(f"{n_out} in-domain records fall outside the age-standard groups and are "
+                              "excluded from the age-adjusted estimate.")
     results = []
     for g, gm in _groups(df, by):
-        r = sv.estimate(df, variable, "WT_ANALYSIS", statistic, dmask & gm, age_adjust)
+        r = sv.estimate(df, variable, "WT_ANALYSIS", statistic, dmask & gm, std)
         r["group"] = g
         results.append(r)
     return {"dataset_id": dataset_id, "variable": variable, "statistic": statistic, "domain": domain,
-            "age_adjusted": age_adjust, "weight": ds["weight_kind"],
+            "age_adjusted": (std or {}).get("note"), "weight": ds["weight_kind"],
             "weight_per_cycle": df.groupby("CYCLE")["WT_SOURCE"].first().to_dict(),
-            "results": results, "warnings": ds["warnings"]}
+            "results": results, "warnings": ds["warnings"] + extra_warn}
 
 
 @mcp.tool()

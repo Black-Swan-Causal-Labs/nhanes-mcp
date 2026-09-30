@@ -22,6 +22,7 @@ AGE_STANDARDS = {
         "groups": [(20, 39), (40, 59), (60, 200)],
         "proportions": [0.3966, 0.3718, 0.2316],
         "note": "NCHS 3-group adult standard (2000 projected census): 20-39, 40-59, 60+",
+        "_resolved": True,
     },
 }
 
@@ -135,13 +136,41 @@ def nchs_proportion_reliability(p, lo, hi, n_eff, df):
     return ("suppress" if any(f.startswith("SUPPRESS") for f in flags) else "review"), flags
 
 
+def resolve_age_standard(spec) -> dict:
+    """Return a validated age standard from a preset name or a custom dict."""
+    if isinstance(spec, dict) and spec.get("_resolved"):
+        return spec
+    if isinstance(spec, str):
+        if spec not in AGE_STANDARDS:
+            raise ValueError(f"Unknown age standard '{spec}'. Presets: {list(AGE_STANDARDS)}; "
+                             "or pass {'groups': [[a0,a1],...], 'population': [...]}.")
+        return AGE_STANDARDS[spec]
+    if not isinstance(spec, dict) or "groups" not in spec:
+        raise ValueError("Custom age standard needs 'groups' plus 'population' or 'proportions'.")
+    groups = [tuple(float(x) for x in g) for g in spec["groups"]]
+    if any(len(g) != 2 or g[0] > g[1] for g in groups):
+        raise ValueError("Each age group must be [low, high] with low <= high (inclusive).")
+    srt = sorted(groups)
+    if any(srt[i][1] >= srt[i + 1][0] for i in range(len(srt) - 1)):
+        raise ValueError("Age groups overlap.")
+    w = spec.get("proportions", spec.get("population"))
+    if w is None or len(w) != len(groups) or any(float(x) <= 0 for x in w):
+        raise ValueError("Give one positive 'population' (or 'proportions') value per age group.")
+    tot = float(sum(w))
+    props = [float(x) / tot for x in w]
+    lab = ", ".join(f"{int(a)}-{int(b)}" if b < 200 else f"{int(a)}+" for a, b in groups)
+    return {"_resolved": True, "age_var": spec.get("age_var", "RIDAGEYR"), "groups": groups, "proportions": props,
+            "note": spec.get("note", "custom standard") + f" (groups {lab}; weights "
+                    + ", ".join(f"{p:.4f}" for p in props) + ")"}
+
+
 def estimate(
     df: pd.DataFrame,
     variable: str,
     weight: str,
     statistic: str = "mean",
     domain_mask: np.ndarray | None = None,
-    age_adjust: str | None = None,
+    age_adjust: str | dict | None = None,
     level: float = 0.95,
 ) -> dict:
     d = design_from_frame(df, weight)
@@ -171,14 +200,14 @@ def estimate(
         return out
 
     if age_adjust:
-        std = AGE_STANDARDS[age_adjust]
+        std = resolve_age_standard(age_adjust)
         age = df[std["age_var"]].to_numpy(dtype=float)
         est, z = 0.0, np.zeros(len(df))
         cells = []
         for (a0, a1), c in zip(std["groups"], std["proportions"]):
             dk = dom & (age >= a0) & (age <= a1)
             Rk, zk = domain_ratio(y0, dk, d)
-            cells.append({"age_group": (f"{a0}-{a1}" if a1 < 200 else f"{a0}+"), "std_proportion": c,
+            cells.append({"age_group": (f"{a0:g}-{a1:g}" if a1 < 200 else f"{a0:g}+"), "std_proportion": c,
                           "crude_estimate": Rk, "n": int(dk.sum())})
             est += c * Rk
             z += c * zk

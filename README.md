@@ -1,7 +1,7 @@
 # nhanes-mcp
 
 An MCP server for **design-correct**, conversational access to NHANES public-use data.
-Black Swan Causal Labs · MIT license · v0.3
+Black Swan Causal Labs · MIT license · v0.4
 
 Most "chat with a dataset" layers let an agent compute an unweighted mean. With NHANES that
 answer is wrong. This server makes the defensible analysis the default: the agent asks a question
@@ -16,24 +16,25 @@ keeps the full survey design, and reports design-based estimates with NCHS relia
 
 | Pitfall | What the server does |
 |---|---|
-| Wrong / no weight | `build_dataset` picks the most restrictive weight (interview → MEC → fasting/phlebotomy subsample → dietary day-1/day-2), explains why, and stores it in `WT_ANALYSIS` |
+| Wrong / no weight | `build_dataset` picks the most restrictive weight (interview → MEC → fasting / phlebotomy / surplus-serum subsample → dietary day-1/day-2), explains why, and stores it in `WT_ANALYSIS`. Overrides (`build_dataset(weight=...)`, `set_weight`) are reported with every result; `WT_ANALYSIS` cannot be overwritten silently |
 | Subsetting before estimation | `domain=` expressions keep the full design (zero weight outside the domain) |
 | Pooling cycles | Weights rescaled by cycle years / total years (2017–March 2020 counts as 3.2 years); 1999–2002 uses 4-year weights; strata made cycle-unique; refuses 2017–2018 + 2017–2020 overlap |
 | Long-format tables (e.g. prescriptions) | Refuses to join tables with repeated `SEQN` (which would silently duplicate weights); `flag_from_long_table` collapses them to one row per person |
 | Refused / don't-know codes | `describe_variable` reads the CDC codebook and suggests sentinel codes; `set_missing` recodes them |
-| Silent 0 for missing | `derive_variable` propagates missingness (`any` / `all` / `none`) |
+| Silent 0 for missing | `derive_variable` propagates missingness (`any` / `all` / `none`); `coalesce`, `fillna`, `isna`, `notna`, `where` handle missingness deliberately |
+| Irregular file names | Tries known variants (e.g. 1999–2000 surplus-serum files `SSCMV_A`, `SSMUMP_A`) |
 | Variance | Taylor linearization, strata × PSU, design df; Korn–Graubard CIs and NCHS 2017 reliability flags for proportions |
-| Age adjustment | Direct adjustment to the 2000 US standard (20–39 / 40–59 / 60+) with linearized SE |
+| Age adjustment | Direct adjustment to the 2000 US standard (20–39 / 40–59 / 60+) with linearized SE, or to any caller-supplied standard (age groups + population), with a warning for in-domain records outside the groups |
 | Mortality | Optional join of the public-use Linked Mortality File (follow-up through 2019) and a design-based Cox model |
 
-## Tools (15)
+## Tools (16)
 
 | Step | Tools |
 |---|---|
 | Orient | `list_cycles`, `analysis_guidance` |
 | Find | `list_files`, `search_variables`, `describe_variable` |
 | Build | `build_dataset` (optional mortality join), `describe_dataset` |
-| Clean / derive | `set_missing`, `derive_variable`, `flag_from_long_table` |
+| Clean / derive | `set_missing`, `derive_variable`, `flag_from_long_table`, `set_weight` |
 | Analyze | `survey_frequency`, `survey_estimate`, `survey_regression` (linear / logistic), `survey_cox` (Cox PH, Binder variance) |
 | Export | `export_dataset` |
 
@@ -49,6 +50,9 @@ Estimates were checked against published NCHS results (`validation/`):
 - **Mortality:** a design-based Cox model on NHANES 1999–2006 (adults 25+) reproduces 6 of 7 published
   hazard ratios within their CIs (NHSR 155). The Mexican American contrast does not reproduce
   (0.71 vs 1.12 published); this is under investigation and the linked file here has longer follow-up (2019 vs 2015).
+- **CMV seroprevalence** (Bate et al., *Clin Infect Dis* 2010; NHANES 1999–2004, ages 6–49, surplus-serum
+  weights): see `tests/benchmark_nchs.py`. Before v0.4 the server silently used MEC weights here and could not
+  load the 1999–2000 file.
 - **Unit tests** (`tests/`): variance checked against an independent loop implementation and a
   delete-one-PSU jackknife; Cox model checked against statsmodels PHReg and a jackknife; weight
   selection, pooling, guards, expression semantics, long-table and dietary-weight handling.
@@ -87,6 +91,22 @@ python tests/test_cox.py
 python tests/test_long_and_dietary.py
 python tests/benchmark_nchs.py          # reproduces published NCHS estimates (needs network)
 ```
+
+## Known open issues
+
+- Age-adjusted adult obesity for 2009–2010 and earlier runs 0.1–0.7 points below NCHS Health E-Stat 111
+  (2011–2012 onward matches exactly). Pooling and pregnancy-code handling were ruled out; cause under investigation.
+- The CMV analysis finds 14,198 tested participants aged 6–49 in the public surplus-serum files versus 15,310
+  reported by Bate et al.; unexplained.
+- NHANES III (1988–1994) is not supported.
+
+## Changelog
+
+- **0.4.0** — Surplus-serum and other file-specific subsample weights with `2Y`/`4Y` suffixes are detected
+  and pooled; 1999–2000 `_A` file names resolved; `build_dataset(weight=...)` and new `set_weight` tool, both
+  recorded in every result; design columns protected from `derive_variable`; missing-aware expression functions;
+  custom age standards; CMV benchmark added.
+- **0.3.0** — Initial public release.
 
 ## Limitations
 
