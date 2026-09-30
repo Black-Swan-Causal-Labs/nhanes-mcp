@@ -54,6 +54,10 @@ GUIDANCE = """NHANES analysis rules this server enforces (and why):
 10. MORTALITY. build_dataset(include_mortality=True) joins the public-use Linked Mortality File
    (follow-up through 2019; cycles 1999-2000..2017-2018). Restrict to ELIGSTAT == 1; time =
    PERMTH_INT (from interview) or PERMTH_EXM (from exam); event = MORTSTAT. Use survey_cox.
+11. PRESENTING RESULTS. show_results renders the interactive Results Explorer (MCP Apps hosts) and
+   returns a text summary elsewhere. Always fill in the analysis plan (outcome_label,
+   population_label, rationale) so the user can see how the question was interpreted, and pass
+   published comparators as benchmarks when they exist.
 """
 
 
@@ -658,6 +662,155 @@ def export_dataset(dataset_id: str, filename: str | None = None) -> dict:
     pd.Series({k: ds[k] for k in ("cycles", "tables", "weight_kind", "weight_reason", "warnings",
                                    "provenance", "derived")}).to_json(side, indent=2)
     return {"csv": str(fn), "provenance": str(side), "n_rows": len(ds["df"])}
+
+
+# ----------------------------------------------------------------------------------------------
+# MCP App: Results Explorer (interactive view rendered by MCP Apps hosts such as Claude Desktop).
+# The view is a self-contained HTML resource; hosts without MCP Apps support get the text summary.
+# ----------------------------------------------------------------------------------------------
+from mcp import types as _mt  # noqa: E402
+
+APP_DIR = Path(__file__).parent / "app"
+VIEW_URI = "ui://nhanes-mcp/results-explorer.html"
+
+KNOWN_NAMES = {"RIAGENDR": "Sex", "RIDRETH1": "Race and Hispanic origin", "RIDRETH3": "Race and Hispanic origin",
+               "CYCLE": "Survey cycle", "DMDEDUC2": "Education (adults 20+)"}
+KNOWN_LABELS = {
+    "RIAGENDR": {"1": "Men", "2": "Women"},
+    "RIDRETH1": {"1": "Mexican American", "2": "Other Hispanic", "3": "Non-Hispanic White",
+                 "4": "Non-Hispanic Black", "5": "Other / multiracial"},
+    "RIDRETH3": {"1": "Mexican American", "2": "Other Hispanic", "3": "Non-Hispanic White",
+                 "4": "Non-Hispanic Black", "6": "Non-Hispanic Asian", "7": "Other / multiracial"},
+    "DMDEDUC2": {"1": "Less than 9th grade", "2": "9-11th grade", "3": "High school / GED",
+                 "4": "Some college / AA", "5": "College graduate or above"},
+}
+
+
+def _view_html() -> str:
+    tpl = (APP_DIR / "results_explorer.html").read_text(encoding="utf-8")
+    sdk = (APP_DIR / "vendor" / "mcp-apps-sdk.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
+    logo = (APP_DIR / "feather.b64").read_text(encoding="utf-8").strip()
+    return tpl.replace("/*__MCP_APPS_SDK__*/", sdk).replace("__FEATHER_B64__", logo)
+
+
+@mcp.resource(VIEW_URI, name="results_explorer", title="NHANES Results Explorer",
+              description="Interactive view for show_results (MCP Apps).",
+              mime_type="text/html;profile=mcp-app", meta={"ui": {"prefersBorder": False}})
+def results_explorer_view() -> str:
+    return _view_html()
+
+
+def _key(v) -> str:
+    if isinstance(v, (int, float, np.number)) and float(v).is_integer():
+        return str(int(v))
+    return str(v)
+
+
+def _row(r: dict, level=None, label=None) -> dict:
+    return {"level": level, "label": label, "estimate": r.get("estimate"), "se": r.get("se"),
+            "ci_low": r.get("ci_low"), "ci_high": r.get("ci_high"), "n": r.get("n_unweighted"),
+            "design_df": r.get("design_df"), "reliability": r.get("nchs_reliability"),
+            "flags": r.get("reliability_flags", []), "ci_method": r.get("ci_method")}
+
+
+@mcp.tool(meta={"ui": {"resourceUri": VIEW_URI}, "ui/resourceUri": VIEW_URI})
+def show_results(dataset_id: str, variable: str, statistic: str = "proportion", domain: str | None = None,
+                 by: list[str] | None = None, age_adjust: str | dict | None = None,
+                 title: str | None = None, question: str | None = None,
+                 outcome_label: str | None = None, population_label: str | None = None,
+                 group_names: dict | None = None, group_labels: dict | None = None,
+                 rationale: str | None = None, benchmarks: list[dict] | None = None) -> _mt.CallToolResult:
+    """Present design-based results in the interactive Results Explorer (MCP App): headline estimate,
+    subgroup panels, the analysis plan (so the user can check how the question was interpreted),
+    server warnings, NCHS benchmarks and full provenance. Hosts without MCP Apps get a text summary.
+
+    Same estimation arguments as survey_estimate (dataset_id, variable, statistic, domain, age_adjust);
+    by: one panel per grouping variable, e.g. ['RIAGENDR', 'RIDRETH3', 'AGEGRP'] (age-adjustment is
+    skipped for age groupings -- names starting with AGE or RIDAGE, or containing _AGE -- whose panels
+    are age-specific).
+    title / question / outcome_label / population_label / rationale: plain-language analysis plan.
+    group_names: {"AGEGRP": "Age group"}; group_labels: {"AGEGRP": {"1": "20-39", ...}} (common NHANES
+    demographics are labeled automatically).
+    benchmarks: published comparators, e.g. [{"label": "Obesity 2021-23", "published": 40.3,
+    "source_label": "NCHS Data Brief 508", "source_url": "https://...", "by": "RIAGENDR", "level": "1"}]
+    (published in percent for proportions; omit by/level for the overall estimate)."""
+    ds = _ds(dataset_id)
+    variable = variable.upper()
+    by = [b.upper() for b in (by or [])]
+    names = {**KNOWN_NAMES, **{k.upper(): v for k, v in (group_names or {}).items()}}
+    labels = {k: dict(v) for k, v in KNOWN_LABELS.items()}
+    for k, v in (group_labels or {}).items():
+        labels[k.upper()] = {str(kk): vv for kk, vv in v.items()}
+
+    base = survey_estimate(dataset_id, variable, statistic, domain, None, age_adjust)
+    overall = _row(base["results"][0])
+    warnings = list(base["warnings"])
+    age_note = base.get("age_adjusted")
+    if age_adjust and base["results"][0].get("age_adjustment"):
+        overall["age_cells"] = base["results"][0]["age_adjustment"]["cells"]
+
+    panels = []
+    for b in by:
+        is_age = b.startswith(("AGE", "RIDAGE")) or "_AGE" in b  # not RIAGENDR (sex)
+        res = survey_estimate(dataset_id, variable, statistic, domain, [b], None if is_age else age_adjust)
+        rows = []
+        for r in res["results"]:
+            lv = _key(r["group"][b])
+            if not r.get("n_unweighted"):
+                continue
+            rows.append(_row(r, lv, labels.get(b, {}).get(lv, lv)))
+        for w in res["warnings"]:
+            if w not in warnings:
+                warnings.append(w)
+        panels.append({"var": b, "name": names.get(b, b), "age_adjusted": bool(age_adjust) and not is_age,
+                       "rows": rows})
+
+    bench = []
+    for bm in benchmarks or []:
+        tgt = None
+        if bm.get("by"):
+            p = next((p for p in panels if p["var"] == str(bm["by"]).upper()), None)
+            if p:
+                tgt = next((r for r in p["rows"] if r["level"] == _key(bm.get("level"))), None)
+        else:
+            tgt = overall
+        server = None if tgt is None or tgt["estimate"] is None else (
+            round(100 * tgt["estimate"], 1) if statistic == "proportion" else round(tgt["estimate"], 2))
+        pub = bm.get("published")
+        diff = None if server is None or pub is None else round(server - float(pub), 1)
+        bench.append({"label": bm.get("label"), "published": pub, "server": server, "difference": diff,
+                      "source_label": bm.get("source_label"), "source_url": bm.get("source_url")})
+
+    df = ds["df"]
+    data = {
+        "kind": "nhanes-results", "version": 1, "tool_args": {
+            "dataset_id": dataset_id, "variable": variable, "statistic": statistic, "domain": domain,
+            "by": by, "age_adjust": age_adjust},
+        "title": title or f"{outcome_label or variable}", "question": question,
+        "plan": {"outcome": outcome_label or variable, "variable": variable, "statistic": statistic,
+                 "population": population_label or domain or "All participants", "domain": domain,
+                 "groups": [p["name"] for p in panels], "age_standard": age_note, "rationale": rationale},
+        "design": {"cycles": ds["cycles"], "tables": ds["tables"], "weight_kind": ds["weight_kind"],
+                   "weight_reason": ds["weight_reason"],
+                   "weight_per_cycle": df.groupby("CYCLE")["WT_SOURCE"].first().to_dict(),
+                   "variance": "Taylor linearization; strata x PSU, with replacement",
+                   "design_df": overall["design_df"], "ci_method": overall["ci_method"],
+                   "derived": ds["derived"], "files": ds["provenance"]},
+        "overall": overall, "panels": panels, "warnings": warnings, "benchmarks": bench,
+    }
+    pct = statistic == "proportion"
+    fmt = (lambda v: f"{100 * v:.1f}%") if pct else (lambda v: f"{v:.2f}")
+    lines = [f"{data['title']}: {fmt(overall['estimate'])} (95% CI {fmt(overall['ci_low'])}-{fmt(overall['ci_high'])}, "
+             f"n={overall['n']}, {overall['reliability']})" + (f"; {age_note}" if age_note else "")]
+    for p in panels:
+        lines.append(p["name"] + ": " + "; ".join(f"{r['label']} {fmt(r['estimate'])}" for r in p["rows"]))
+    for b_ in bench:
+        lines.append(f"Benchmark {b_['label']}: server {b_['server']} vs published {b_['published']} ({b_['source_label']})")
+    if warnings:
+        lines.append("Warnings: " + " | ".join(warnings))
+    lines.append("Shown in the interactive Results Explorer where the client supports MCP Apps.")
+    return _mt.CallToolResult(content=[_mt.TextContent(type="text", text="\n".join(lines))],
+                              structuredContent=data)
 
 
 def main():

@@ -1,10 +1,11 @@
-__pycache__/
+*.egg-info/
 *.pyc
-.venv/
-uv.lock
 *.tar.gz
 .DS_Store
 .pytest_cache/
-*.egg-info/
-dist/
+.venv/
+__pycache__/
 build/
+dist/
+tests/_preview.json
+uv.lock

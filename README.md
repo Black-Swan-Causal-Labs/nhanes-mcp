@@ -1,7 +1,7 @@
 # nhanes-mcp
 
 An MCP server for **design-correct**, conversational access to NHANES public-use data.
-Black Swan Causal Labs · MIT license · v0.4.1
+Black Swan Causal Labs · MIT license · v0.5
 
 Most "chat with a dataset" layers let an agent compute an unweighted mean. With NHANES that
 answer is wrong. This server makes the defensible analysis the default: the agent asks a question
@@ -27,7 +27,7 @@ keeps the full survey design, and reports design-based estimates with NCHS relia
 | Age adjustment | Direct adjustment to the 2000 US standard (20–39 / 40–59 / 60+) with linearized SE, or to any caller-supplied standard (age groups + population), with a warning for in-domain records outside the groups |
 | Mortality | Optional join of the public-use Linked Mortality File (follow-up through 2019) and a design-based Cox model |
 
-## Tools (16)
+## Tools (17)
 
 | Step | Tools |
 |---|---|
@@ -36,9 +36,26 @@ keeps the full survey design, and reports design-based estimates with NCHS relia
 | Build | `build_dataset` (optional mortality join), `describe_dataset` |
 | Clean / derive | `set_missing`, `derive_variable`, `flag_from_long_table`, `set_weight` |
 | Analyze | `survey_frequency`, `survey_estimate`, `survey_regression` (linear / logistic), `survey_cox` (Cox PH, Binder variance) |
+| Present | `show_results` — interactive **Results Explorer** (MCP App) |
 | Export | `export_dataset` |
 
 Cycles: 1999–2000 through 2017–2018, 2017–March 2020 (pre-pandemic, `P_` files) and August 2021–August 2023.
+
+## Results Explorer (MCP App)
+
+`show_results` returns design-based results together with an interactive view that MCP Apps hosts
+(Claude Desktop/web, ChatGPT, VS Code, Goose) render inside the conversation:
+
+- headline estimate with 95% CI, sample size and NCHS reliability badge, with a crude / age-adjusted
+  toggle that re-runs the estimate on the server;
+- the **analysis plan** — outcome, population, domain, groups, age standard and the rationale — so the
+  user can check how a plain-language question was interpreted;
+- subgroup panels (estimate + CI charts and tables; unreliable estimates are suppressed, not drawn);
+- server warnings, NCHS benchmarks with links to the published sources, and full design provenance.
+
+The view is a single self-contained HTML resource (`ui://nhanes-mcp/results-explorer.html`): the MCP
+Apps SDK is inlined (`nhanes_mcp/app/vendor`), so it needs no network access. Clients without MCP Apps
+support receive the same results as text.
 
 ## Validation
 
@@ -104,6 +121,8 @@ python tests/benchmark_nchs.py          # reproduces published NCHS estimates (n
 
 ## Changelog
 
+- **0.5.0** — Results Explorer MCP App (`show_results` + `ui://nhanes-mcp/results-explorer.html`);
+  analysis guidance rule 11.
 - **0.4.1** — Comparisons inside missing-aware functions now return missing when an operand is missing, so
   skip-pattern definitions such as `where(BPQ020 == 1, fillna(BPQ150, 2) == 1, 0)` are missing (not 0) for people
   never asked the screener. Hypertension benchmark (NCHS Data Brief 511) added.

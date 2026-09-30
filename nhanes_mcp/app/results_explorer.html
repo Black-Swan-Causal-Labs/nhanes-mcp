@@ -1,0 +1,288 @@
+<!doctype html>
+<!-- NHANES Results Explorer — MCP App view for nhanes-mcp. © 2026 Black Swan Causal Labs. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>NHANES Results Explorer</title>
+<style>
+:root{
+  --black:#050608; --deep:#090c10; --surface:#0d1117; --ink:#111620; --line:#1f2631; --grid:#1a2029;
+  --white:#eef0f3; --silver:#c8cdd4; --muted:#8a93a0;
+  --teal:#3d7a7a; --teal-light:#5aadad; --accent:#8bbfbf;
+  --good:#0ca30c; --warn:#fab219; --warn-bg:#241d0c; --warn-ink:#f3d58c; --bad:#d03b3b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--deep);color:var(--white);
+  font:14px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:1080px;margin:0 auto;padding:18px 16px 20px}
+header.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.mark{display:flex;align-items:center;gap:10px;min-width:0}
+.feather{width:54px;height:auto;border-radius:6px;background:var(--white);padding:3px 5px}
+.wordmark{font-family:Georgia,"Times New Roman",serif;font-size:17px;letter-spacing:.01em;white-space:nowrap}
+.wordmark em{color:var(--teal-light);font-style:italic}
+.product{font-size:11px;letter-spacing:.22em;text-transform:uppercase;color:var(--silver);text-align:right}
+h1{font-family:Georgia,"Times New Roman",serif;font-weight:400;font-size:24px;margin:18px 0 4px}
+.question{color:var(--silver);margin:0 0 14px}
+.grid{display:grid;gap:12px;grid-template-columns:repeat(12,minmax(0,1fr))}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.c4{grid-column:span 4}.c8{grid-column:span 8}.c12{grid-column:span 12}.c6{grid-column:span 6}
+@media (max-width:760px){.c4,.c8,.c6{grid-column:span 12}}
+.card h2{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--silver);font-weight:600;margin:0 0 8px}
+.eyebrow{font-size:12px;color:var(--muted)}
+.big{font-size:40px;font-weight:650;letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.1;margin:6px 0 2px}
+.ci{color:var(--silver);font-variant-numeric:tabular-nums}
+.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--silver);margin-top:8px}
+.badge i{width:14px;height:14px;border-radius:50%;display:inline-grid;place-items:center;font-style:normal;font-size:10px;font-weight:800;color:#fff}
+.plan{display:grid;grid-template-columns:max-content 1fr;gap:5px 14px;margin:0;font-size:13px}
+.plan dt{color:var(--muted)} .plan dd{margin:0;color:var(--white)}
+.why{margin-top:10px;font-size:12px;color:var(--silver);border-left:2px solid var(--teal);padding-left:8px}
+.warn{display:flex;gap:8px;align-items:flex-start;background:var(--warn-bg);color:var(--warn-ink);border-radius:9px;padding:8px 10px;font-size:13px;margin-top:6px}
+.warn i{flex:none;width:16px;height:16px;border-radius:3px;background:var(--warn);color:#111;display:grid;place-items:center;font-style:normal;font-weight:800;font-size:11px;margin-top:1px}
+.ok{color:var(--muted);font-size:13px}
+.toggle{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden;margin-top:10px}
+.toggle button{background:transparent;border:0;color:var(--silver);font:inherit;font-size:12px;padding:4px 12px;cursor:pointer}
+.toggle button[aria-pressed="true"]{background:var(--teal);color:#fff}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--line);margin-bottom:10px}
+.tabs button{background:none;border:0;border-bottom:2px solid transparent;color:var(--silver);font:inherit;padding:6px 10px;cursor:pointer}
+.tabs button[aria-selected="true"]{color:var(--white);border-bottom-color:var(--teal-light);font-weight:600}
+.sub{font-size:12px;color:var(--muted);margin:0 0 6px}
+svg{display:block;width:100%;height:auto;overflow:visible}
+svg text{fill:var(--silver);font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--grid)}
+th{color:var(--muted);font-weight:600;font-size:12px}
+td.n,th.n{text-align:right}
+a.src{color:var(--teal-light);text-decoration:underline;text-underline-offset:2px;cursor:pointer}
+.match{color:#3fcf5e;font-weight:600}.gap{color:var(--warn);font-weight:600}
+details{margin-top:2px} summary{cursor:pointer;color:var(--silver);font-size:13px}
+.mono{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;color:var(--accent)}
+#tip{position:fixed;pointer-events:none;background:var(--ink);border:1px solid var(--line);color:var(--white);border-radius:8px;padding:7px 9px;font-size:12px;opacity:0;transition:opacity .08s;z-index:9;max-width:240px;box-shadow:0 6px 20px rgba(0,0,0,.45)}
+#tip .m{color:var(--silver)}
+.hit{fill:transparent}
+.scroll{overflow-x:auto}
+.busy{opacity:.55;transition:opacity .15s}
+footer{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-size:11.5px;color:var(--muted);display:flex;flex-wrap:wrap;justify-content:space-between;gap:6px}
+#empty{color:var(--silver);padding:40px 0;text-align:center}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="brand">
+    <div class="mark">
+      <img class="feather" alt="" src="data:image/png;base64,__FEATHER_B64__">
+      <div class="wordmark">Black Swan <em>Causal Labs</em></div>
+    </div>
+    <div class="product">NHANES<br>Results Explorer</div>
+  </header>
+
+  <div id="empty">Waiting for results from nhanes-mcp…</div>
+
+  <main id="main" class="hidden">
+    <h1 id="title"></h1>
+    <p class="question" id="question"></p>
+    <div class="grid">
+      <section class="card c4" id="headline">
+        <h2>Estimate</h2>
+        <div class="eyebrow" id="hl-eyebrow"></div>
+        <div class="big" id="hl-value"></div>
+        <div class="ci" id="hl-ci"></div>
+        <div class="badge" id="hl-badge"></div>
+        <div id="adj-toggle" class="toggle hidden" role="group" aria-label="Age adjustment">
+          <button type="button" data-adj="1" aria-pressed="true">Age-adjusted</button>
+          <button type="button" data-adj="0" aria-pressed="false">Crude</button>
+        </div>
+      </section>
+      <section class="card c8">
+        <h2>Analysis plan</h2>
+        <dl class="plan" id="plan"></dl>
+        <div class="why hidden" id="why"></div>
+      </section>
+      <section class="card c12" id="warn-card">
+        <h2>Server checks</h2>
+        <div id="warnings"></div>
+      </section>
+      <section class="card c12 hidden" id="panel-card">
+        <h2>By subgroup</h2>
+        <div class="tabs" id="tabs" role="tablist"></div>
+        <p class="sub" id="panel-sub"></p>
+        <div id="chart"></div>
+        <details style="margin-top:8px"><summary>Table view</summary><div id="panel-table"></div></details>
+      </section>
+      <section class="card c12 hidden" id="bench-card">
+        <h2>Benchmarks against published estimates</h2>
+        <div id="bench"></div>
+      </section>
+      <section class="card c12">
+        <h2>Design &amp; provenance</h2>
+        <dl class="plan" id="design"></dl>
+        <details style="margin-top:8px"><summary>Derived variables &amp; files</summary><div id="prov"></div></details>
+      </section>
+    </div>
+  </main>
+
+  <footer>
+    <span>© 2026 Black Swan Causal Labs · NHANES Results Explorer (MCP App) · nhanes-mcp</span>
+    <span>Public-use NHANES data from NCHS/CDC · Not affiliated with NCHS or CDC</span>
+  </footer>
+</div>
+<div id="tip" role="tooltip"></div>
+
+<script>/*__MCP_APPS_SDK__*/</script>
+<script>
+(function(){
+  const $ = id => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  const el = (n,a,p)=>{const e=document.createElementNS(NS,n);for(const k in (a||{}))e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e;};
+  const esc = s => String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+  let data=null, args=null, panelIdx=0, app=null;
+
+  const isPct = () => data && data.plan.statistic==="proportion";
+  const fmt = v => v==null||isNaN(v) ? "–" : (isPct()? (100*v).toFixed(1)+"%" : Number(v).toFixed(2));
+  const fmtNum = v => v==null||isNaN(v) ? "–" : (isPct()? (100*v).toFixed(1) : Number(v).toFixed(2));
+
+  function badge(rel){
+    const map={reliable:["#0ca30c","✓","Meets NCHS reliability standard"],review:["#b98200","!","Review: see NCHS flags"],suppress:["#d03b3b","×","Suppress: fails NCHS reliability standard"]};
+    const m=map[rel]; if(!m) return "";
+    return `<i style="background:${m[0]}">${m[1]}</i>${m[2]}`;
+  }
+
+  // ---------- tooltip ----------
+  const tip=$("tip");
+  function showTip(ev,html){tip.innerHTML=html;tip.style.opacity=1;tip.style.left=Math.min(ev.clientX+14,innerWidth-250)+"px";tip.style.top=(ev.clientY+14)+"px";}
+  function hideTip(){tip.style.opacity=0;}
+
+  // ---------- links (sandboxed iframe: ask the host to open) ----------
+  document.addEventListener("click",e=>{
+    const a=e.target.closest("a[data-href]"); if(!a) return; e.preventDefault();
+    const url=a.getAttribute("data-href");
+    if(app && app.openLink) app.openLink({url}).catch(()=>{}); else window.open(url,"_blank","noopener");
+  });
+
+  // ---------- render ----------
+  function render(d){
+    data=d; $("empty").classList.add("hidden"); $("main").classList.remove("hidden");
+    $("title").textContent=d.title||"Results";
+    $("question").textContent=d.question?("Research question: "+d.question):"";
+    const o=d.overall;
+    const adj=!!d.plan.age_standard;
+    $("hl-eyebrow").textContent=(d.plan.outcome||"")+" · "+(adj?"age-adjusted":"crude");
+    $("hl-value").textContent=fmt(o.estimate);
+    $("hl-ci").textContent=`95% CI ${fmt(o.ci_low)}–${fmt(o.ci_high)} · n = ${Number(o.n||0).toLocaleString()}`;
+    $("hl-badge").innerHTML=badge(o.reliability);
+    const canToggle = args && args.age_adjust!=null || (d.tool_args && d.tool_args.age_adjust!=null);
+    const tg=$("adj-toggle"); tg.classList.toggle("hidden", !(canToggle || (lastAdj!=null)));
+    tg.querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed", String((b.dataset.adj==="1")===adj)));
+
+    const plan=[["Outcome",esc(d.plan.outcome)+(d.plan.variable&&d.plan.variable!==d.plan.outcome?` <span class="mono">${esc(d.plan.variable)}</span>`:"")],
+      ["Statistic",esc(d.plan.statistic)],["Population",esc(d.plan.population)],
+      ["Domain",d.plan.domain?`<span class="mono">${esc(d.plan.domain)}</span>`:"All participants"],
+      ["Groups",esc((d.plan.groups||[]).join(", ")||"None")],["Age standard",esc(d.plan.age_standard||"None (crude)")]];
+    $("plan").innerHTML=plan.map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("");
+    const why=$("why"); why.classList.toggle("hidden",!d.plan.rationale); why.textContent=d.plan.rationale?("Why these choices: "+d.plan.rationale):"";
+
+    $("warnings").innerHTML = (d.warnings&&d.warnings.length)
+      ? d.warnings.map(w=>`<div class="warn"><i>!</i><div>${esc(w)}</div></div>`).join("")
+      : `<div class="ok">No warnings. Weight, design and reliability checks passed.</div>`;
+
+    const pc=$("panel-card");
+    if(d.panels&&d.panels.length){ pc.classList.remove("hidden"); if(panelIdx>=d.panels.length) panelIdx=0; renderTabs(); renderPanel(); }
+    else pc.classList.add("hidden");
+
+    const bc=$("bench-card");
+    if(d.benchmarks&&d.benchmarks.length){
+      bc.classList.remove("hidden");
+      const m=d.benchmarks.filter(b=>b.difference===0).length;
+      let h=`<p class="sub"><b style="color:var(--white)">${m} of ${d.benchmarks.length}</b> match the published value at one decimal.</p><table><thead><tr><th>Estimate</th><th class="n">nhanes-mcp</th><th class="n">Published</th><th class="n">Difference</th><th>Status</th><th>Source</th></tr></thead><tbody>`;
+      d.benchmarks.forEach(b=>{
+        const st=b.difference==null?"–":(b.difference===0?'<span class="match">✓ Matches</span>':'<span class="gap">△ Differs</span>');
+        const src=b.source_url?`<a class="src" href="#" data-href="${esc(b.source_url)}">${esc(b.source_label||"Source")}</a>`:esc(b.source_label||"");
+        h+=`<tr><td>${esc(b.label)}</td><td class="n">${b.server==null?"–":b.server}</td><td class="n">${b.published==null?"–":b.published}</td><td class="n">${b.difference==null?"–":(b.difference>0?"+":"")+b.difference}</td><td>${st}</td><td>${src}</td></tr>`;
+      });
+      $("bench").innerHTML='<div class="scroll">'+h+"</tbody></table></div>";
+    } else bc.classList.add("hidden");
+
+    const g=d.design;
+    const wpc=Object.entries(g.weight_per_cycle||{}).map(([c,w])=>`${esc(c)}: <span class="mono">${esc(w)}</span>`).join("<br>");
+    $("design").innerHTML=[["Cycles",esc((g.cycles||[]).join(", "))],["Weight",`<b>${esc(g.weight_kind)}</b> — ${esc(g.weight_reason)}`],
+      ["Per cycle",wpc],["Variance",esc(g.variance)],["Design df",esc(g.design_df)],["CI method",esc(g.ci_method||"")]]
+      .map(([k,v])=>`<dt>${k}</dt><dd>${v}</dd>`).join("");
+    const der=Object.entries(g.derived||{}).map(([k,v])=>`<tr><td class="mono">${esc(k)}</td><td class="mono">${esc(typeof v==="object"?(v.expression||JSON.stringify(v)):v)}</td></tr>`).join("");
+    const files=(g.files||[]).map(f=>`${esc(f.file)} (${Number(f.rows||0).toLocaleString()} rows)`).join(" · ");
+    $("prov").innerHTML=(der?`<table><thead><tr><th>Variable</th><th>Definition</th></tr></thead><tbody>${der}</tbody></table>`:"")+`<p class="sub" style="margin-top:8px">Files: ${files}</p>`;
+  }
+
+  function renderTabs(){
+    const t=$("tabs"); t.innerHTML="";
+    data.panels.forEach((p,i)=>{const b=document.createElement("button");b.type="button";b.role="tab";b.textContent=p.name;b.setAttribute("aria-selected",String(i===panelIdx));b.onclick=()=>{panelIdx=i;renderTabs();renderPanel();};t.appendChild(b);});
+  }
+
+  function renderPanel(){
+    const p=data.panels[panelIdx], rows=p.rows, o=data.overall;
+    $("panel-sub").textContent=(p.age_adjusted?"Age-adjusted":"Crude (age-specific)")+" · point = estimate, bar = 95% CI · dashed line = overall "+fmt(o.estimate);
+    const box=$("chart"); box.innerHTML="";
+    const W=Math.max(300,box.clientWidth||900),rowH=32,L=Math.min(190,Math.round(W*0.36)),R=62,T=6,H=T+rows.length*rowH+26;
+    const vals=rows.flatMap(r=>[r.ci_low,r.ci_high]).concat([o.estimate]).filter(v=>v!=null&&!isNaN(v));
+    let lo=Math.min(0,...vals), hi=Math.max(...vals);
+    if(isPct()){ hi=Math.min(1,Math.ceil(hi*10+0.5)/10); lo=0; }
+    else { const pad=(hi-lo)*0.08||1; hi+=pad; lo=Math.min(...vals)-pad; }
+    const s=el("svg",{viewBox:`0 0 ${W} ${H}`,role:"img","aria-label":p.name},box);
+    const x=v=>L+(v-lo)/(hi-lo)*(W-L-R);
+    const ticks=W<520?3:5;
+    for(let i=0;i<=ticks;i++){const v=lo+(hi-lo)*i/ticks;el("line",{x1:x(v),x2:x(v),y1:T,y2:H-20,stroke:"var(--grid)"},s);const t=el("text",{x:x(v),y:H-5,"text-anchor":"middle"},s);t.textContent=isPct()?Math.round(v*100)+"%":v.toFixed(1);}
+    if(o.estimate!=null) el("line",{x1:x(o.estimate),x2:x(o.estimate),y1:T,y2:H-20,stroke:"var(--muted)","stroke-dasharray":"3 3"},s);
+    rows.forEach((r,i)=>{
+      const cy=T+i*rowH+rowH/2, sup=r.reliability==="suppress";
+      const lab=el("text",{x:L-12,y:cy+4,"text-anchor":"end"},s); lab.textContent=r.label; lab.style.fill="var(--white)"; lab.style.fontSize="12.5px";
+      if(sup){ const t=el("text",{x:L,y:cy+4},s); t.textContent="Suppressed — fails NCHS reliability standard"; t.style.fill="var(--muted)"; }
+      else{
+        el("line",{x1:x(r.ci_low),x2:x(r.ci_high),y1:cy,y2:cy,stroke:"var(--teal-light)","stroke-width":2,"stroke-linecap":"round"},s);
+        el("circle",{cx:x(r.estimate),cy,r:5.5,fill:"var(--teal-light)",stroke:"var(--surface)","stroke-width":2},s);
+        const v=el("text",{x:x(r.ci_high)+8,y:cy+4},s); v.textContent=fmt(r.estimate)+(r.reliability==="review"?" †":"");
+      }
+      const h=el("rect",{x:0,y:cy-rowH/2,width:W,height:rowH,class:"hit"},s);
+      h.addEventListener("mousemove",e=>showTip(e,`<b>${esc(r.label)}</b><br>${fmt(r.estimate)} <span class="m">(95% CI ${fmt(r.ci_low)}–${fmt(r.ci_high)})</span><div class="m">n = ${Number(r.n||0).toLocaleString()} · ${esc(r.reliability||"")}</div>`));
+      h.addEventListener("mouseleave",hideTip);
+    });
+    let t=`<table><thead><tr><th>${esc(p.name)}</th><th class="n">Estimate</th><th class="n">95% CI</th><th class="n">SE</th><th class="n">n</th><th>NCHS reliability</th></tr></thead><tbody>`;
+    rows.forEach(r=>{t+=`<tr><td>${esc(r.label)}</td><td class="n">${fmtNum(r.estimate)}</td><td class="n">${fmtNum(r.ci_low)}–${fmtNum(r.ci_high)}</td><td class="n">${fmtNum(r.se)}</td><td class="n">${Number(r.n||0).toLocaleString()}</td><td>${esc(r.reliability||"")}</td></tr>`;});
+    $("panel-table").innerHTML='<div class="scroll">'+t+"</tbody></table></div>";
+  }
+
+  let rz; addEventListener("resize",()=>{clearTimeout(rz);rz=setTimeout(()=>{if(data&&data.panels&&data.panels.length)renderPanel();},120);});
+
+  // ---------- age-adjust toggle: re-runs the estimate on the server ----------
+  let lastAdj=null;
+  $("adj-toggle").addEventListener("click",async e=>{
+    const b=e.target.closest("button"); if(!b||!app||!args) return;
+    const want=b.dataset.adj==="1"; const now=!!(data&&data.plan.age_standard);
+    if(want===now) return;
+    if(lastAdj==null) lastAdj=args.age_adjust;
+    const next=Object.assign({},args,{age_adjust: want? lastAdj : null});
+    $("main").classList.add("busy");
+    try{
+      const res=await app.callServerTool({name:"show_results",arguments:next});
+      if(res && res.structuredContent){ args=next; render(res.structuredContent); }
+    }catch(err){ console.error(err); }
+    finally{ $("main").classList.remove("busy"); }
+  });
+
+  // ---------- MCP Apps wiring ----------
+  function boot(){
+    if(!(globalThis.McpApps && McpApps.App)){ return; }
+    app=new McpApps.App({name:"NHANES Results Explorer",version:"1.0.0"});
+    app.ontoolinput=p=>{ args=Object.assign({},p.arguments||{}); };
+    app.ontoolresult=r=>{
+      const sc=r && r.structuredContent;
+      if(sc && sc.kind==="nhanes-results"){ if(!args) args=Object.assign({},sc.tool_args); render(sc); }
+    };
+    app.connect().catch(err=>console.error("MCP Apps connect failed",err));
+  }
+  // Standalone preview: window.__NHANES_PREVIEW__ = {...structuredContent}
+  if(globalThis.__NHANES_PREVIEW__) render(globalThis.__NHANES_PREVIEW__); else boot();
+})();
+</script>
+</body>
+</html>
