@@ -113,6 +113,27 @@ def test_coalesce_equals_automatic_pooled_weight():
     assert set(ds.TESTED.unique()) == {0.0, 1.0}
 
 
+def test_skip_pattern_where_propagates_missing():
+    """A follow-up question asked only when the screener is 'yes': where(screener == 1, followup == 1, 0)
+    must be missing when the screener itself is missing, not silently 0."""
+    r = build()
+    dsid = r["dataset_id"]
+    ds = S.DATASETS[dsid]["df"]
+    ds["SCREEN"] = np.where(ds.RIDAGEYR < 16, np.nan, np.where(ds.SEQN % 3 == 0, 1.0, 2.0))
+    ds["FOLLOW"] = np.where(ds.SCREEN == 1, np.where(ds.SEQN % 2 == 0, 1.0, 2.0), np.nan)
+    S.derive_variable(dsid, "TAKES", "where(SCREEN == 1, fillna(FOLLOW, 2) == 1, 0)")
+    assert ds.loc[ds.SCREEN.isna(), "TAKES"].isna().all(), "missing screener must give missing result"
+    assert (ds.loc[ds.SCREEN == 2, "TAKES"] == 0).all()
+    exp = (ds.loc[ds.SCREEN == 1, "FOLLOW"] == 1).astype(float)
+    assert (ds.loc[ds.SCREEN == 1, "TAKES"] == exp).all()
+    # chained comparison inside an NA function also propagates
+    v, _ = S._eval(ds, "fillna(0 < SCREEN < 2, 9)")
+    assert (v[ds.SCREEN.isna()] == 9).all() and (v[ds.SCREEN == 1] == 1).all()
+    # outside NA functions, domain semantics are unchanged (missing != 1 is True)
+    m, _ = S._eval(ds, "SCREEN != 1")
+    assert (m[ds.SCREEN.isna()] == 1).all()
+
+
 def test_custom_age_standard():
     r = build()
     dsid = r["dataset_id"]
