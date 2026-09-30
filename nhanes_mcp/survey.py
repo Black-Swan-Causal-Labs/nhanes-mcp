@@ -22,6 +22,7 @@ AGE_STANDARDS = {
         "groups": [(20, 39), (40, 59), (60, 200)],
         "proportions": [0.3966, 0.3718, 0.2316],
         "note": "NCHS 3-group adult standard (2000 projected census): 20-39, 40-59, 60+",
+        "_resolved": True,
     },
 }
 
