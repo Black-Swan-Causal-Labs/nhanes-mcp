@@ -18,7 +18,10 @@ html,body{margin:0;background:var(--deep);color:var(--white);
   font:14px/1.5 Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
 .wrap{max-width:1080px;margin:0 auto;padding:18px 16px 20px}
 header.brand{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid var(--line)}
-.mark{display:flex;align-items:center;gap:10px;min-width:0}
+.mark{display:flex;align-items:center;gap:10px;min-width:0;color:inherit;text-decoration:none;cursor:pointer}
+.mark:hover .wordmark{text-decoration:underline;text-underline-offset:3px;text-decoration-color:var(--teal)}
+a.brandlink{color:var(--silver);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--teal);cursor:pointer}
+a.brandlink:hover{color:var(--teal-light)}
 .feather{width:54px;height:auto;border-radius:6px;background:var(--white);padding:3px 5px}
 .wordmark{font-family:Georgia,"Times New Roman",serif;font-size:17px;letter-spacing:.01em;white-space:nowrap}
 .wordmark em{color:var(--teal-light);font-style:italic}
@@ -71,10 +74,10 @@ footer{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-si
 <body>
 <div class="wrap">
   <header class="brand">
-    <div class="mark">
-      <img class="feather" alt="" src="data:image/png;base64,__FEATHER_B64__">
-      <div class="wordmark">Black Swan <em>Causal Labs</em></div>
-    </div>
+    <a class="mark" href="#" data-href="https://blackswancausallabs.com" title="Black Swan Causal Labs — blackswancausallabs.com">
+      <img class="feather" alt="Black Swan Causal Labs" src="data:image/png;base64,__FEATHER_B64__">
+      <span class="wordmark">Black Swan <em>Causal Labs</em></span>
+    </a>
     <div class="product">NHANES<br>Results Explorer</div>
   </header>
 
@@ -124,7 +127,7 @@ footer{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-si
   </main>
 
   <footer>
-    <span>© 2026 Black Swan Causal Labs · NHANES Results Explorer (MCP App) · nhanes-mcp</span>
+    <span>© 2026 <a class="brandlink" href="#" data-href="https://blackswancausallabs.com">Black Swan Causal Labs</a> · NHANES Results Explorer (MCP App) · nhanes-mcp</span>
     <span>Public-use NHANES data from NCHS/CDC · Not affiliated with NCHS or CDC</span>
   </footer>
 </div>
