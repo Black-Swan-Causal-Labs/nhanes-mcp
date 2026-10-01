@@ -36,26 +36,24 @@ keeps the full survey design, and reports design-based estimates with NCHS relia
 | Build | `build_dataset` (optional mortality join), `describe_dataset` |
 | Clean / derive | `set_missing`, `derive_variable`, `flag_from_long_table`, `set_weight` |
 | Analyze | `survey_frequency`, `survey_estimate`, `survey_regression` (linear / logistic), `survey_cox` (Cox PH, Binder variance) |
-| Present | `show_results` — interactive **Results Explorer** (MCP App) |
+| Present | `show_results` — text + structured results; interactive view with the optional Results Explorer add-on |
 | Export | `export_dataset` |
 
 Cycles: 1999–2000 through 2017–2018, 2017–March 2020 (pre-pandemic, `P_` files) and August 2021–August 2023.
 
-## Results Explorer (MCP App)
+## Results Explorer (optional add-on)
 
-`show_results` returns design-based results together with an interactive view that MCP Apps hosts
-(Claude Desktop/web, ChatGPT, VS Code, Goose) render inside the conversation:
+`show_results` returns design-based results as text plus structured data in every client. With the
+optional **NHANES Results Explorer** add-on installed, MCP Apps hosts (Claude Desktop/web, ChatGPT,
+VS Code, Goose) also render an interactive view: headline estimate with CI and NCHS reliability badge,
+a crude / age-adjusted toggle that re-runs the estimate on the server, the analysis plan, subgroup
+panels, server warnings, benchmarks against published estimates, and design provenance.
 
-- headline estimate with 95% CI, sample size and NCHS reliability badge, with a crude / age-adjusted
-  toggle that re-runs the estimate on the server;
-- the **analysis plan** — outcome, population, domain, groups, age standard and the rationale — so the
-  user can check how a plain-language question was interpreted;
-- subgroup panels (estimate + CI charts and tables; unreliable estimates are suppressed, not drawn);
-- server warnings, NCHS benchmarks with links to the published sources, and full design provenance.
-
-The view is a single self-contained HTML resource (`ui://nhanes-mcp/results-explorer.html`): the MCP
-Apps SDK is inlined (`nhanes_mcp/app/vendor`), so it needs no network access. Clients without MCP Apps
-support receive the same results as text.
+The add-on is a separate package from Black Swan Causal Labs under the **PolyForm Noncommercial
+License 1.0.0** (free for academic, public-health and other noncommercial use; commercial use needs a
+license — https://blackswancausallabs.com). It is not part of this MIT repository. nhanes-mcp finds it if
+it is installed in the same Python environment, if `NHANES_MCP_EXPLORER_PATH` points to it, or if a
+folder named `nhanes-mcp-explorer` sits next to the `nhanes-mcp` folder.
 
 ## Validation
 
@@ -76,16 +74,40 @@ Estimates were checked against published NCHS results (`validation/`):
   delete-one-PSU jackknife; Cox model checked against statsmodels PHReg and a jackknife; weight
   selection, pooling, guards, expression semantics, long-table and dietary-weight handling.
 
-## Install (Claude Desktop, macOS)
+## Install
+
+### Easiest: let your AI assistant do it
+
+Paste this into Claude (Cowork or Claude Code), or any agent that can run commands on your computer:
+
+> Install the nhanes-mcp MCP server from https://github.com/Black-Swan-Causal-Labs/nhanes-mcp for Claude
+> Desktop. Install `uv` if it is missing, then add this entry to my Claude Desktop config
+> (`claude_desktop_config.json`), using the full path to `uvx`:
+> `"nhanes": {"command": "uvx", "args": ["--from", "git+https://github.com/Black-Swan-Causal-Labs/nhanes-mcp", "nhanes-mcp"]}`.
+> Keep my existing servers. Then tell me to restart Claude Desktop.
+
+### One line in the config (uvx)
+
+With [uv](https://docs.astral.sh/uv/) installed, add to `claude_desktop_config.json` and restart Claude Desktop
+(on macOS use the full path from `which uvx`, e.g. `/Users/<you>/.local/bin/uvx`):
+
+```json
+"nhanes": {
+  "command": "uvx",
+  "args": ["--from", "git+https://github.com/Black-Swan-Causal-Labs/nhanes-mcp", "nhanes-mcp"]
+}
+```
+
+`uvx` fetches the server and its dependencies into an isolated environment on first launch; no clone or
+virtual environment to manage.
+
+### From source (for development)
 
 ```bash
 python3 -m venv ~/.nhanes-mcp-venv
 ~/.nhanes-mcp-venv/bin/pip install "mcp>=1.2,<2" pandas numpy scipy pyreadstat httpx beautifulsoup4 lxml
 git clone https://github.com/Black-Swan-Causal-Labs/nhanes-mcp.git ~/nhanes-mcp
 ```
-
-Then add to `~/Library/Application Support/Claude/claude_desktop_config.json` (use absolute paths)
-and restart Claude Desktop:
 
 ```json
 "nhanes": {
@@ -121,8 +143,8 @@ python tests/benchmark_nchs.py          # reproduces published NCHS estimates (n
 
 ## Changelog
 
-- **0.5.0** — Results Explorer MCP App (`show_results` + `ui://nhanes-mcp/results-explorer.html`);
-  analysis guidance rule 11.
+- **0.5.0** — `show_results` tool (text + structured results; interactive view via the optional
+  Results Explorer add-on); one-command install with `uvx`; analysis guidance rule 11.
 - **0.4.1** — Comparisons inside missing-aware functions now return missing when an operand is missing, so
   skip-pattern definitions such as `where(BPQ020 == 1, fillna(BPQ150, 2) == 1, 0)` are missing (not 0) for people
   never asked the screener. Hypertension benchmark (NCHS Data Brief 511) added.

@@ -12,11 +12,16 @@ from nhanes_mcp import server as S  # noqa: E402
 def test_tool_and_resource_registered():
     tools = asyncio.run(S.mcp.list_tools())
     t = next(t for t in tools if t.name == "show_results")
-    assert t.meta["ui"]["resourceUri"] == S.VIEW_URI
     res = asyncio.run(S.mcp.list_resources())
+    if S.EXPLORER is None:  # MIT core alone: text-only, no UI resource advertised
+        assert not (t.meta or {}).get("ui")
+        assert not any(str(r.uri) == S.VIEW_URI for r in res)
+        print("(Results Explorer add-on not installed: text-only mode checked)")
+        return
+    assert t.meta["ui"]["resourceUri"] == S.VIEW_URI
     r = next(r for r in res if str(r.uri) == S.VIEW_URI)
     assert r.mimeType == "text/html;profile=mcp-app"
-    html = S._view_html()
+    html = S.EXPLORER.view_html()
     assert "__FEATHER_B64__" not in html and "/*__MCP_APPS_SDK__*/" not in html
     assert "globalThis.McpApps" in html and "data:image/png;base64," in html
     assert html.count("</script>") == 2  # SDK script + app script; none leaked from the bundle

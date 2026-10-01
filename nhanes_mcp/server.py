@@ -54,8 +54,8 @@ GUIDANCE = """NHANES analysis rules this server enforces (and why):
 10. MORTALITY. build_dataset(include_mortality=True) joins the public-use Linked Mortality File
    (follow-up through 2019; cycles 1999-2000..2017-2018). Restrict to ELIGSTAT == 1; time =
    PERMTH_INT (from interview) or PERMTH_EXM (from exam); event = MORTSTAT. Use survey_cox.
-11. PRESENTING RESULTS. show_results renders the interactive Results Explorer (MCP Apps hosts) and
-   returns a text summary elsewhere. Always fill in the analysis plan (outcome_label,
+11. PRESENTING RESULTS. show_results returns a text summary plus structured results (and the
+   interactive Results Explorer in MCP Apps hosts when that add-on is installed). Always fill in the analysis plan (outcome_label,
    population_label, rationale) so the user can see how the question was interpreted, and pass
    published comparators as benchmarks when they exist.
 """
@@ -670,7 +670,6 @@ def export_dataset(dataset_id: str, filename: str | None = None) -> dict:
 # ----------------------------------------------------------------------------------------------
 from mcp import types as _mt  # noqa: E402
 
-APP_DIR = Path(__file__).parent / "app"
 VIEW_URI = "ui://nhanes-mcp/results-explorer.html"
 
 KNOWN_NAMES = {"RIAGENDR": "Sex", "RIDRETH1": "Race and Hispanic origin", "RIDRETH3": "Race and Hispanic origin",
@@ -686,18 +685,38 @@ KNOWN_LABELS = {
 }
 
 
-def _view_html() -> str:
-    tpl = (APP_DIR / "results_explorer.html").read_text(encoding="utf-8")
-    sdk = (APP_DIR / "vendor" / "mcp-apps-sdk.js").read_text(encoding="utf-8").replace("</script", "<\\/script")
-    logo = (APP_DIR / "feather.b64").read_text(encoding="utf-8").strip()
-    return tpl.replace("/*__MCP_APPS_SDK__*/", sdk).replace("__FEATHER_B64__", logo)
+def _load_explorer():
+    """Optional add-on: the NHANES Results Explorer view (separate package, PolyForm Noncommercial,
+    Black Swan Causal Labs). Found if installed, via NHANES_MCP_EXPLORER_PATH, or as a sibling folder
+    named nhanes-mcp-explorer. Without it, show_results returns text only."""
+    import importlib
+    import sys
+    try:
+        return importlib.import_module("nhanes_mcp_explorer")
+    except ImportError:
+        pass
+    cands = [cat.os.environ.get("NHANES_MCP_EXPLORER_PATH"),
+             str(Path(__file__).resolve().parents[2] / "nhanes-mcp-explorer")]
+    for c in cands:
+        if c and (Path(c) / "nhanes_mcp_explorer" / "__init__.py").exists():
+            sys.path.insert(0, c)
+            try:
+                return importlib.import_module("nhanes_mcp_explorer")
+            except ImportError:
+                sys.path.remove(c)
+    return None
 
 
-@mcp.resource(VIEW_URI, name="results_explorer", title="NHANES Results Explorer",
-              description="Interactive view for show_results (MCP Apps).",
-              mime_type="text/html;profile=mcp-app", meta={"ui": {"prefersBorder": False}})
-def results_explorer_view() -> str:
-    return _view_html()
+EXPLORER = _load_explorer()
+_SHOW_META = {"ui": {"resourceUri": VIEW_URI}, "ui/resourceUri": VIEW_URI} if EXPLORER else None
+
+if EXPLORER:
+    @mcp.resource(VIEW_URI, name="results_explorer", title="NHANES Results Explorer",
+                  description="Interactive view for show_results (MCP Apps). NHANES Results Explorer add-on, "
+                              "Black Swan Causal Labs, PolyForm Noncommercial 1.0.0.",
+                  mime_type="text/html;profile=mcp-app", meta={"ui": {"prefersBorder": False}})
+    def results_explorer_view() -> str:
+        return EXPLORER.view_html()
 
 
 def _key(v) -> str:
@@ -713,16 +732,17 @@ def _row(r: dict, level=None, label=None) -> dict:
             "flags": r.get("reliability_flags", []), "ci_method": r.get("ci_method")}
 
 
-@mcp.tool(meta={"ui": {"resourceUri": VIEW_URI}, "ui/resourceUri": VIEW_URI})
+@mcp.tool(meta=_SHOW_META)
 def show_results(dataset_id: str, variable: str, statistic: str = "proportion", domain: str | None = None,
                  by: list[str] | None = None, age_adjust: str | dict | None = None,
                  title: str | None = None, question: str | None = None,
                  outcome_label: str | None = None, population_label: str | None = None,
                  group_names: dict | None = None, group_labels: dict | None = None,
                  rationale: str | None = None, benchmarks: list[dict] | None = None) -> _mt.CallToolResult:
-    """Present design-based results in the interactive Results Explorer (MCP App): headline estimate,
-    subgroup panels, the analysis plan (so the user can check how the question was interpreted),
-    server warnings, NCHS benchmarks and full provenance. Hosts without MCP Apps get a text summary.
+    """Present design-based results: headline estimate, subgroup panels, the analysis plan (so the user
+    can check how the question was interpreted), server warnings, NCHS benchmarks and provenance.
+    Returns a text summary plus structured data; when the optional NHANES Results Explorer add-on is
+    installed, MCP Apps hosts also render it as an interactive view.
 
     Same estimation arguments as survey_estimate (dataset_id, variable, statistic, domain, age_adjust);
     by: one panel per grouping variable, e.g. ['RIAGENDR', 'RIDRETH3', 'AGEGRP'] (age-adjustment is
@@ -809,7 +829,8 @@ def show_results(dataset_id: str, variable: str, statistic: str = "proportion", 
         lines.append(f"Benchmark {b_['label']}: server {b_['server']} vs published {b_['published']} ({b_['source_label']})")
     if warnings:
         lines.append("Warnings: " + " | ".join(warnings))
-    lines.append("Shown in the interactive Results Explorer where the client supports MCP Apps.")
+    if EXPLORER:
+        lines.append("Shown in the interactive Results Explorer where the client supports MCP Apps.")
     return _mt.CallToolResult(content=[_mt.TextContent(type="text", text="\n".join(lines))],
                               structuredContent=data)
 
