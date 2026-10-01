@@ -41,7 +41,7 @@ def test_show_results_structured_output():
     assert abs(sc["overall"]["estimate"] - ref) < 1e-12
     sex, age = sc["panels"]
     assert [r["label"] for r in sex["rows"]] == ["Men", "Women"] and sex["age_adjusted"]
-    assert [r["label"] for r in age["rows"]] == ["20-39", "40-59", "60+"] and not age["age_adjusted"]
+    assert [r["label"] for r in age["rows"]] == ["20-39", "40-59", "60+"] and not age["age_adjusted"] and age["age_specific"] and not sex["age_specific"]
     assert sc["benchmarks"][0]["server"] == round(100 * ref, 1)
     assert sc["benchmarks"][1]["server"] == round(100 * sex["rows"][0]["estimate"], 1)
     assert "Adult obesity:" in out.content[0].text

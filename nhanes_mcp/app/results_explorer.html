@@ -221,7 +221,7 @@ footer{margin-top:16px;padding-top:10px;border-top:1px solid var(--line);font-si
 
   function renderPanel(){
     const p=data.panels[panelIdx], rows=p.rows, o=data.overall;
-    $("panel-sub").textContent=(p.age_adjusted?"Age-adjusted":"Crude (age-specific)")+" · point = estimate, bar = 95% CI · dashed line = overall "+fmt(o.estimate);
+    $("panel-sub").textContent=(p.age_adjusted?"Age-adjusted":(p.age_specific?"Age-specific (crude)":"Crude"))+" · point = estimate, bar = 95% CI · dashed line = overall "+fmt(o.estimate);
     const box=$("chart"); box.innerHTML="";
     const W=Math.max(300,box.clientWidth||900),rowH=32,L=Math.min(190,Math.round(W*0.36)),R=62,T=6,H=T+rows.length*rowH+26;
     const vals=rows.flatMap(r=>[r.ci_low,r.ci_high]).concat([o.estimate]).filter(v=>v!=null&&!isNaN(v));

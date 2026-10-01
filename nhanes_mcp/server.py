@@ -763,6 +763,7 @@ def show_results(dataset_id: str, variable: str, statistic: str = "proportion", 
             if w not in warnings:
                 warnings.append(w)
         panels.append({"var": b, "name": names.get(b, b), "age_adjusted": bool(age_adjust) and not is_age,
+                       "age_specific": is_age,
                        "rows": rows})
 
     bench = []
